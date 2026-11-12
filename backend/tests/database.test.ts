@@ -1,30 +1,13 @@
 import 'dotenv/config';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 import test from 'node:test';
-import { Client } from 'pg';
 import { createApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { createDatabase } from '../src/database.js';
 import { syntheticContacts, syntheticLeads, syntheticOpportunities } from '../prisma/fixtures.js';
-
-const execute = promisify(execFile);
-const backendDirectory = fileURLToPath(new URL('../', import.meta.url));
-const prismaCli = createRequire(import.meta.url).resolve('prisma/build/index.js');
-
-async function runPrisma(args: string[], databaseUrl: string, nodeEnvironment = 'test') {
-  const result = await execute(process.execPath, [prismaCli, ...args], {
-    cwd: backendDirectory,
-    env: { ...process.env, DATABASE_URL: databaseUrl, NODE_ENV: nodeEnvironment },
-    timeout: 60_000,
-  });
-  return result.stdout;
-}
+import { createTestDatabase, runPrisma } from './helpers/database.js';
 
 async function assertReadiness(database: ReturnType<typeof createDatabase>, expectedStatus: number) {
   const app = createApp({
@@ -54,28 +37,12 @@ async function assertReadiness(database: ReturnType<typeof createDatabase>, expe
 }
 
 test('Phase 2 PostgreSQL schema, fixtures, and readiness', { timeout: 180_000 }, async (suite) => {
-  assert.ok(process.env.TEST_DATABASE_URL, 'Set TEST_DATABASE_URL to a local/test PostgreSQL server with CREATEDB rights');
-  const adminUrl = new URL(process.env.TEST_DATABASE_URL);
-  assert.ok(['postgres:', 'postgresql:'].includes(adminUrl.protocol));
-
-  // Only this randomly named database is changed and dropped. Existing databases are retained.
-  const databaseName = `crm_verify_${randomBytes(8).toString('hex')}`;
-  const targetUrl = new URL(adminUrl);
-  targetUrl.pathname = `/${databaseName}`;
-  const databaseUrl = targetUrl.toString();
-  const admin = new Client({ connectionString: adminUrl.toString(), connectionTimeoutMillis: 2_000 });
-  let created = false;
-  let sql: Client | undefined;
+  const isolated = await createTestDatabase();
+  const databaseUrl = isolated.url;
+  const connection = isolated.connection;
   let database: ReturnType<typeof createDatabase> | undefined;
 
   try {
-    await admin.connect();
-    await admin.query(`CREATE DATABASE "${databaseName}"`);
-    created = true;
-    sql = new Client({ connectionString: databaseUrl, connectionTimeoutMillis: 2_000 });
-    await sql.connect();
-    const connection = sql;
-
     await suite.test('migrations apply to an empty database and reapply without changes', async () => {
       const empty = await connection.query("SELECT count(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public'");
       assert.equal(empty.rows[0].count, 0);
@@ -228,10 +195,6 @@ test('Phase 2 PostgreSQL schema, fixtures, and readiness', { timeout: 180_000 },
     });
   } finally {
     await database?.$disconnect();
-    await sql?.end();
-    if (created) {
-      await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
-    }
-    await admin.end();
+    await isolated.close();
   }
 });

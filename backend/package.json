@@ -16,18 +16,28 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "prisma generate && prisma db seed",
-    "db:verify": "prisma generate && tsx --test tests/database.test.ts"
+    "db:verify": "prisma generate && tsx --test tests/database.test.ts",
+    "test": "prisma generate && tsx --test tests/*.test.ts",
+    "test:integration": "prisma generate && tsx --test tests/api.test.ts",
+    "auth:setup": "tsx scripts/setup-auth.ts",
+    "staff:create": "prisma generate && tsx scripts/provision-user.ts"
   },
   "dependencies": {
+    "@inquirer/prompts": "^7.10.1",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "dotenv": "^17.2.3",
     "express": "^5.3.0",
+    "express-session": "^1.19.0",
+    "connect-pg-simple": "^10.0.0",
+    "express-rate-limit": "^8.7.4",
     "pg": "^8.16.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/express": "^5.0.5",
+    "@types/express-session": "^1.19.0",
+    "@types/connect-pg-simple": "^7.0.3",
     "@types/pg": "^8.15.6",
     "prisma": "7.10.1",
     "tsx": "^4.20.6"

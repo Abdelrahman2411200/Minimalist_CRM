@@ -23,3 +23,34 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env) {
 
   return result.data;
 }
+
+function isOrigin(value: string) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+  } catch {
+    return false;
+  }
+}
+
+const authEnvironmentSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  SESSION_SECRET: z.string().min(32).refine((value) => !value.startsWith('replace-'), 'Generate a random session secret'),
+  APP_ORIGIN: z.string().refine(isOrigin, 'Expected an HTTP(S) origin without a path').default('http://127.0.0.1:5173'),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(1).default(0),
+}).superRefine((config, context) => {
+  if (config.NODE_ENV === 'production' && !config.APP_ORIGIN.startsWith('https://')) {
+    context.addIssue({ code: 'custom', path: ['APP_ORIGIN'], message: 'Production requires an HTTPS origin' });
+  }
+});
+
+export function loadAuthConfig(environment: NodeJS.ProcessEnv = process.env) {
+  const result = authEnvironmentSchema.safeParse(environment);
+  if (!result.success) {
+    const fields = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
+    throw new Error(`Invalid authentication configuration (${fields.join(', ')}). For local setup run npm run auth:setup --workspace backend.`);
+  }
+  return result.data;
+}
+
+export type AuthConfig = ReturnType<typeof loadAuthConfig>;
