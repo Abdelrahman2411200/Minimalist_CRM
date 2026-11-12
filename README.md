@@ -123,13 +123,13 @@ npm run auth:setup --workspace backend
 
 Run this once before starting the API locally. Keep the same secret across application restarts so sessions remain usable. For production, supply `SESSION_SECRET` through the server's secret configuration and set `APP_ORIGIN=https://<crm-domain>`. Production enables Secure cookies. Set `TRUST_PROXY_HOPS=1` only when the API is reachable exclusively through one trusted HTTPS reverse proxy.
 
-`npm run staff:create --workspace backend -- --username <username>` provisions a staff account and prompts for a hidden password.
+`npm run staff:create --workspace backend` prompts for your chosen username and a hidden password, then provisions the staff account.
 
 ```sh
-npm run staff:create --workspace backend -- --username <username>
+npm run staff:create --workspace backend
 ```
 
-Replace `<username>` with the staff username. Usernames are normalized to lowercase and accept 3–64 letters, digits, dots, underscores, or hyphens, starting with a letter or digit. Passwords require 12–128 characters. The command stores a salted scrypt hash and reports a conflict for an existing username. For automation, add `--password-stdin` and stream the password from a secret manager through stdin. Keep password values out of command arguments and shell history.
+Enter the staff username at the prompt. Usernames are normalized to lowercase and accept 3–64 letters, digits, dots, underscores, or hyphens, starting with a letter or digit. Passwords require 12–128 characters. The command stores a salted scrypt hash and reports a conflict for an existing username. You can also supply the chosen username with `--username`. For automation, supply `--username` and `--password-stdin`, and stream the password from a secret manager through stdin. Keep password values out of command arguments and shell history.
 
 The login API, authenticated contact-to-opportunity walkthrough, filters, updates, and logout examples are documented in [API requests](docs/api-requests.md). Unsafe requests require the configured Origin header. Sessions use an eight-hour sliding expiry. Login allows ten failed attempts per IP in 15 minutes. Its in-memory rate counter resets on restart and needs a shared store if the app is scaled to multiple instances.
 

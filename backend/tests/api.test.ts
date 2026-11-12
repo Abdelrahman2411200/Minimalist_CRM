@@ -45,7 +45,7 @@ function provisionStaff(databaseUrl: string, username: string, password: string)
       cwd: backendDirectory,
       env: { ...process.env, DATABASE_URL: databaseUrl, NODE_ENV: 'test' },
       timeout: 30_000,
-    }, (error) => error ? reject(error) : resolve());
+    }, (error, _stdout, stderr) => error ? reject(Object.assign(error, { stderr })) : resolve());
     child.stdin?.end(`${password}\n`);
   });
 }
@@ -118,6 +118,11 @@ test('Phase 3 authenticated HTTP workflow', { timeout: 180_000 }, async (suite) 
     api = await startApi(database, isolated.url, config);
 
     await suite.test('staff provisioning hashes passwords and rejects duplicate usernames', async () => {
+      await assert.rejects(provisionStaff(isolated.url, '<username>', password), (error: unknown) => {
+        assert.ok(error instanceof Error && 'stderr' in error && typeof error.stderr === 'string');
+        assert.match(error.stderr, /Invalid username/);
+        return true;
+      });
       await provisionStaff(isolated.url, username.toUpperCase(), password);
       const stored = await database.user.findUniqueOrThrow({ where: { username } });
       assert.ok(stored.passwordHash.startsWith('scrypt$65536$8$2$'));

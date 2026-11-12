@@ -47,7 +47,7 @@ An opportunity payload will contain fields such as the following.
 
 ## Staff accounts and session storage
 
-`User` has a generated UUID, a unique username, a password hash, and creation/update timestamps. Local CRM fixtures create contacts, leads, and opportunities. Staff accounts are provisioned explicitly through `npm run staff:create --workspace backend -- --username <username>`. Usernames use 3–64 letters, digits, dots, underscores, or hyphens, starting with a letter or digit. Provisioning and sign-in normalize usernames to lowercase. New passwords have 12–128 characters and are read through a hidden prompt or stdin.
+`User` has a generated UUID, a unique username, a password hash, and creation/update timestamps. Local CRM fixtures create contacts, leads, and opportunities. Staff accounts are provisioned explicitly through `npm run staff:create --workspace backend`, which prompts for a username and hidden password. Usernames use 3–64 letters, digits, dots, underscores, or hyphens, starting with a letter or digit. Provisioning and sign-in normalize usernames to lowercase. New passwords have 12–128 characters and are read through a hidden prompt or stdin. Automation supplies `--username` and `--password-stdin`.
 
 The initial migration includes the PostgreSQL `session` table used by `express-session` with `connect-pg-simple`. It has `sid varchar` as the primary key, `sess json`, `expire timestamp(6)`, and an expiry index named `IDX_session_expire`. The store uses `createTableIfMissing: false`, prunes expired sessions at a randomized 15-minute interval, and stores the authenticated user's UUID in session JSON. [Session table reference](https://github.com/voxpelli/node-connect-pg-simple/blob/HEAD/table.sql)
 

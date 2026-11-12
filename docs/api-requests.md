@@ -32,7 +32,7 @@ $headers = @{ Origin = 'http://127.0.0.1:5173' }
 `Get-Credential` reads the staff credentials interactively. `Invoke-RestMethod` signs in and keeps the cookie in the in-memory `$crmSession` variable. The password is obtained at runtime so its literal value stays out of command history.
 
 ```powershell
-$credentials = Get-Credential -UserName '<username>' -Message 'CRM staff sign-in'
+$credentials = Get-Credential -Message 'CRM staff sign-in'
 $loginBody = @{
   username = $credentials.UserName
   password = $credentials.GetNetworkCredential().Password
