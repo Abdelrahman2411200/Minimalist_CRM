@@ -1,0 +1,82 @@
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum LeadStage {
+  Prospecting
+  Qualification
+  Proposal
+  Negotiation
+  ClosedWon     @map("Closed Won")
+  ClosedLost    @map("Closed Lost")
+}
+
+model Contact {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName  String
+  lastName   String
+  email      String
+  phone      String?
+  company    String
+  leadSource String
+  notes      String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lead       Lead?
+
+  @@index([leadSource])
+}
+
+model Lead {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contactId     String        @unique @db.Uuid
+  leadScore     Int
+  stage         LeadStage     @default(Prospecting)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  contact       Contact       @relation(fields: [contactId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  opportunities Opportunity[]
+
+  // Score bounds are enforced by a CHECK in the versioned SQL migration.
+  @@index([stage])
+}
+
+model Opportunity {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId          String   @db.Uuid
+  opportunityName String
+  estimatedValue  Decimal  @db.Decimal(14, 2)
+  closeDate       DateTime @db.Date
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // Non-negative, finite values are enforced by a CHECK in the SQL migration.
+  @@index([leadId])
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}
+
+// Matches connect-pg-simple's session table for Phase 3.
+model Session {
+  sid    String   @id @db.VarChar
+  sess   Json     @db.Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+  @@map("session")
+}
