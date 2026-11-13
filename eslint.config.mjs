@@ -5,11 +5,11 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'backend/src/generated/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', 'backend/src/generated/**', 'frontend/test-results/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['backend/**/*.ts', 'frontend/vite.config.ts'],
+    files: ['backend/**/*.ts', 'frontend/vite.config.ts', 'frontend/tests/**/*.ts'],
     languageOptions: { globals: globals.node },
   },
   {

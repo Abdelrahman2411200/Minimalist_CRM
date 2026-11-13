@@ -2,7 +2,7 @@
 
 A lightweight CRM for tracking contacts, qualifying leads, and managing sales opportunities.
 
-**Current checkpoint: Phase 3.** Staff sign-in, PostgreSQL-backed sessions, protected contacts/leads/opportunities endpoints, account provisioning, validation, and HTTP integration tests are implemented. PostgreSQL, migrations, fixtures, health, and readiness checks are available. The React shell is ready for the dashboard screens in Phase 4.
+**Current checkpoint: Phase 4.** The React dashboard supports staff sign-in, contact search and filters, contact details, manual lead qualification, and opportunity creation/editing. The same screens run with the protected PostgreSQL-backed API or a standalone synthetic demo selected at build time. Both targets use hash navigation.
 
 ## Runtime and installation
 
@@ -64,6 +64,7 @@ cp frontend/.env.example frontend/.env
 | `API_PROXY_TARGET` | `frontend/.env` | `http://127.0.0.1:3000` | Server-side Vite development proxy target |
 | `VITE_APP_TITLE` | `frontend/.env` | `Minimalist CRM` | Public dashboard title |
 | `VITE_BASE_PATH` | `frontend/.env` | `/` | Asset base with leading and trailing slashes |
+| `VITE_FULL_CRM_URL` | `frontend/.env` | Empty | Optional public link from the demo to the hosted CRM |
 
 The backend validates configuration before binding its listener. When changing the backend address or port, update `API_PROXY_TARGET` to match. When changing database credentials or ports, update the relevant database URLs too. Percent-encode special characters in URL credentials. Restart development servers after editing environment files. `VITE_*` values are public build-time values. Keep credentials and session secrets on the server.
 
@@ -157,7 +158,7 @@ docker compose --profile test stop postgres-test
 
 ## Develop locally
 
-`npm run dev` starts both applications with automatic reload and stops the other process if either exits; Ctrl+C stops the development session.
+`npm run dev` starts the full dashboard and API with automatic reload and stops the other process if either exits; Ctrl+C stops the development session.
 
 Start PostgreSQL, apply migrations, and run the local authentication setup above before starting development.
 
@@ -168,9 +169,9 @@ npm run dev
 - Dashboard: <http://127.0.0.1:5173/#/contacts>
 - API health: <http://127.0.0.1:3000/health>
 - Database readiness: <http://127.0.0.1:3000/ready>
-- Other shell routes: `#/leads` and `#/opportunities`; hash routes survive reloads.
+- Other dashboard routes include `#/leads` and `#/opportunities`, plus resource detail and edit routes. Hash routes survive reloads.
 
-Vite forwards `/api` requests to the backend without stripping the prefix. `/health` and `/ready` are direct backend endpoints outside that proxy. Resource routes require a staff session. The dashboard sign-in screen and resource forms arrive in Phase 4. Development servers bind to loopback by default, and Vite fails if port 5173 is occupied.
+Vite forwards relative `/api` requests to the backend without stripping the prefix. `/health` and `/ready` are direct backend endpoints outside that proxy. Resource routes require a staff session. Open the Vite URL shown above so the browser origin matches `APP_ORIGIN`. Development servers bind to loopback by default, and Vite fails if port 5173 is occupied.
 
 `npm run dev --workspace backend` starts just the API, useful when working in separate terminals.
 
@@ -183,6 +184,40 @@ npm run dev --workspace backend
 ```sh
 npm run dev --workspace frontend
 ```
+
+## Dashboard and standalone demo
+
+Sign in to the full dashboard with a provisioned staff account. Add a contact, open its detail page, choose **Qualify lead**, and enter a manual score from 1 to 10. Use **Edit lead** to change the stage or score. Add opportunities from the contact or lead detail page, then edit their names, EGP estimates, and expected close dates. Contact details show the linked lead and all its opportunities.
+
+The Contacts view combines search by name, company, or email with source and stage filters. Choose **Apply filters** to apply the search and selections together. **Clear filters** restores the full list. Contacts without leads appear when the stage filter is omitted. The dashboard includes loading feedback, empty results, field validation, retry controls, and a sign-in prompt when the session expires.
+
+`npm run dev:demo --workspace frontend` starts the synthetic demo directly in the dashboard, using frontend code and browser memory.
+
+```sh
+npm run dev:demo --workspace frontend
+```
+
+The demo label explains that records are fictional and changes reset on reload. It uses reserved `.test` email addresses and keeps edits only in the running page. It makes zero CRM API requests and uses no browser persistence. Set `VITE_FULL_CRM_URL=https://<crm-domain>` to display an external **Open full CRM** link. That setting is public and must contain an HTTP(S) URL without embedded credentials.
+
+The shared `CrmData` interface lives in `frontend/src/data/types.ts`. Vite aliases `@crm-data` to `http.ts` for full/development builds and `demo.ts` for demo builds. The demo imports the API's pure input schemas to keep validation consistent. Relationships, unique leads, nullable contact fields, exact decimal strings, and date-only values are enforced by the in-memory adapter. Its fixture source is independent of database records.
+
+`npm run build:full --workspace frontend` builds the dashboard that calls relative `/api` URLs.
+
+```sh
+npm run build:full --workspace frontend
+```
+
+`npm run build:demo --workspace frontend` builds the standalone portfolio demo.
+
+```sh
+npm run build:demo --workspace frontend
+```
+
+Each target writes `frontend/dist/`. Build the target you plan to serve. The root `npm run build` selects the full frontend target. For GitHub Pages, set `VITE_BASE_PATH=/<repo>/` in the frontend build environment, or `/` for an owner site. The base affects static assets and the browser path, while navigation stays in the hash, such as `https://<owner>.github.io/<repo>/#/contacts`.
+
+`npm run preview --workspace frontend` serves the current build for local inspection. If its base is `/<repo>/`, open the preview URL with that path appended.
+
+The full frontend preview requires a same-origin `/api` service for sign-in and records. Full build browser tests provide that service against a disposable database. The full application container that serves the React build and `/api` together is scheduled for Phase 5.
 
 ## Verify and build
 
@@ -215,6 +250,26 @@ npm test --workspace backend
 ```sh
 npm run test:integration --workspace backend
 ```
+
+`npm test --workspace frontend` checks demo validation, relationships, filtering, exact money/date formats, and reset behavior.
+
+```sh
+npm test --workspace frontend
+```
+
+`npm exec --workspace frontend -- playwright install chromium` installs the browser used by the dashboard verification suite.
+
+```sh
+npm exec --workspace frontend -- playwright install chromium
+```
+
+`npm run test:e2e --workspace frontend` builds both targets into ignored test output, serves them locally, and tests their workflows in Chromium. Start `postgres-test` first using the documented Compose command.
+
+```sh
+npm run test:e2e --workspace frontend
+```
+
+Browser checks cover sign-in, create/edit flows, combined filters, linked sales history, validation, empty and failed requests, loading, session expiry, and sign-out. The demo is tested under `/portfolio/` with zero API requests, fixture deep-link reloads, reset-on-reload, and a mobile viewport. Full-mode checks use a disposable database and verify persisted money/date values after a deep-link reload. Screenshots are saved under ignored `frontend/test-results/` for layout inspection. Test credentials are generated in memory, and the test database is dropped during cleanup.
 
 `npm run start --workspace backend` runs the compiled API after a successful build.
 
@@ -258,9 +313,12 @@ The preview server is for local inspection. Serving the frontend and `/api` from
 | `backend/tests/database.test.ts` | Isolated PostgreSQL verification and readiness checks |
 | `backend/tests/api.test.ts` | Authenticated HTTP workflows against a disposable database |
 | `compose.yaml` | Persistent local PostgreSQL and temporary test PostgreSQL |
-| `docs/api-contract.md` | Money/date formats, relationships, and session storage plan |
+| `docs/api-contract.md` | Money/date formats, relationships, and session storage |
 | `docs/api-requests.md` | Endpoint reference, PowerShell requests, and test commands |
-| `frontend/src/` | Responsive React shell and hash navigation |
+| `frontend/src/pages/` | Contact, lead, and opportunity lists, details, and forms |
+| `frontend/src/data/` | Shared data interface, HTTP adapter, in-memory adapter, and synthetic fixtures |
+| `frontend/src/components/` | Accessible shared fields, forms, status feedback, and table helpers |
+| `frontend/tests/` | Adapter tests and browser workflows for both targets |
 | `frontend/vite.config.ts` | React build, configurable base, and `/api` development proxy |
 | `eslint.config.mjs` | Shared TypeScript and React lint rules |
 | `package.json`, `package-lock.json` | Workspace commands and reproducible dependencies |
@@ -272,7 +330,7 @@ The preview server is for local inspection. Serving the frontend and `/api` from
 3. Add a sales opportunity with an estimated EGP value and expected close date.
 4. Follow the lead through Proposal, Negotiation, Closed Won, or Closed Lost.
 
-Staff will search contacts by name, company, or email and combine lead source and lead stage filters. Contact details will show the linked lead and its opportunities. A contact may have zero or one lead; a lead may have multiple opportunities. Stage applies to the lead as a whole. API money uses non-negative decimal strings and date-only fields use `YYYY-MM-DD`.
+Staff can search contacts by name, company, or email and combine lead source and lead stage filters. Contact details show the linked lead and its opportunities. A contact may have zero or one lead, and a lead may have multiple opportunities. Stage applies to the lead as a whole. API money uses non-negative decimal strings and date-only fields use `YYYY-MM-DD`.
 
 The API uses feature modules for auth, contacts, leads, and opportunities. PostgreSQL and Prisma enforce relationships and store staff accounts and server-side sessions. Authenticated resource routes implement create, list, detail, and update. Delete, self-registration, per-opportunity stages, and tenancy are deferred.
 
@@ -285,7 +343,7 @@ The implemented routes are `POST /api/auth/login`, `POST /api/auth/logout`, `GET
 | 1 | TypeScript applications, health, scripts, setup | Implemented |
 | 2 | PostgreSQL, Prisma schema, migrations, fixtures, readiness | Implemented |
 | 3 | Staff sign-in, PostgreSQL sessions, protected API, integration tests | Implemented |
-| 4 | CRM screens and build-selected HTTP/in-memory data adapters | Planned |
+| 4 | CRM screens and build-selected HTTP/in-memory data adapters | Implemented |
 | 5 | Same-origin container, Docker Compose, GitHub Actions CI | Planned |
 | 6 | Standalone synthetic GitHub Pages demo | Planned |
 | 7 | GHCR images, HTTPS VPS deployment, migrations and rollback | Planned |
@@ -293,4 +351,4 @@ The implemented routes are `POST /api/auth/login`, `POST /api/auth/logout`, `GET
 
 The full CRM will run at `https://<crm-domain>/` with sign-in and persistent records. The portfolio at `https://<owner>.github.io/<repo>/` will use fictional records in browser memory, reset changes on reload, display a demo label, and work without an API or credentials. Both will use the same screens with build-selected adapters and hash routes. A configured URL will optionally link the demo to the full CRM.
 
-Future checks will include both frontend variants and the Docker image. Operations will include private request-rate, 5xx-error, and p95-latency metrics, request IDs without sensitive record data in logs, and backup restores verified against a disposable database. No hosted deployment has been configured or verified in Phase 3.
+Future checks will include the full Docker image and hosted deployments. Operations will include private request-rate, 5xx-error, and p95-latency metrics, request IDs without sensitive record data in logs, and backup restores verified against a disposable database. Phase 4 verification runs locally against both frontend targets, including the repository-path demo build.
