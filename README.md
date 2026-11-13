@@ -1,6 +1,6 @@
 # Minimalist CRM
 
-A lightweight CRM for tracking contacts, qualifying leads, and managing sales opportunities.
+A lightweight CRM for tracking contacts, qualifying leads, and managing sales opportunities. Staff can follow a customer from the first inquiry to a closed sale in a single dashboard.
 
 **Current checkpoint: Phase 6.** The full CRM runs through Docker Compose, and successful CI on `main` builds, verifies, and publishes the fictional demo to GitHub Pages. Both targets use the same React screens and hash navigation. See [Pages setup and hosted checks](docs/github-pages.md) for publishing configuration and verification.
 
@@ -409,7 +409,7 @@ See the [Phase 5 verification report](docs/phase-5-verification.md) for the comm
 ## Planned CRM behavior
 
 1. Add a contact, such as fictional Sara Ahmed, with work email, company, source, and optional notes.
-2. Create a linked lead, manually score it from 1 to 10, and move it from Prospecting to Qualification.
+2. Create a linked lead, manually score it 7 out of 10, and move it from Prospecting to Qualification.
 3. Add a sales opportunity with an estimated EGP value and expected close date.
 4. Follow the lead through Proposal, Negotiation, Closed Won, or Closed Lost.
 
