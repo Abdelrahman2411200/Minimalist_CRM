@@ -1,0 +1,12 @@
+.git
+.github
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+**/.env
+**/.env.*
+**/test-results
+backend/src/generated
+Minimalist-CRM-Implementation-Plan.md

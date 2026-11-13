@@ -192,6 +192,15 @@ test('Phase 2 PostgreSQL schema, fixtures, and readiness', { timeout: 180_000 },
       assert.throws(() => loadConfig({ DATABASE_URL: 'invalid' }), /Invalid server configuration/);
       assert.throws(() => loadConfig({ DATABASE_URL: 'https://example.test' }), /Invalid server configuration/);
       assert.equal(loadConfig({ DATABASE_URL: databaseUrl }).PORT, 3000);
+      const containerConfig = loadConfig({
+        POSTGRES_HOST: 'postgres', POSTGRES_USER: 'crm@staff',
+        POSTGRES_PASSWORD: 'local:/@#?%fixture', POSTGRES_DB: 'crm_test',
+      });
+      const containerUrl = new URL(containerConfig.DATABASE_URL);
+      assert.equal(containerUrl.hostname, 'postgres');
+      assert.equal(decodeURIComponent(containerUrl.username), 'crm@staff');
+      assert.equal(decodeURIComponent(containerUrl.password), 'local:/@#?%fixture');
+      assert.throws(() => loadConfig({ POSTGRES_HOST: 'postgres' }), /POSTGRES_PASSWORD/);
     });
   } finally {
     await database?.$disconnect();

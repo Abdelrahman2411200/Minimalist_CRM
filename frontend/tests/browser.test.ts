@@ -42,9 +42,9 @@ async function buildTarget(mode: 'full' | 'demo') {
   return outDir;
 }
 
-async function startHost(outDir: string, base = '/') {
+async function startHost(outDir: string | undefined, base = '/') {
   const app = express();
-  app.use(base, express.static(outDir));
+  if (outDir) app.use(base, express.static(outDir));
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
@@ -210,10 +210,12 @@ test('built full dashboard completes the authenticated workflow against isolated
     await runPrisma(['migrate', 'deploy'], isolated.url);
     const password = randomBytes(24).toString('base64url');
     await database.user.create({ data: { username: 'browser-staff', passwordHash: await hashPassword(password) } });
-    host = await startHost(await buildTarget('full'));
+    const frontendDirectory = await buildTarget('full');
+    host = await startHost(undefined);
     sessions = createSessionStore(isolated.url);
     const config = loadAuthConfig({ NODE_ENV: 'test', SESSION_SECRET: randomBytes(48).toString('hex'), APP_ORIGIN: host.origin });
     host.app.use(createApp({
+      frontendDirectory,
       api: { database, config, store: sessions.store },
       checkDatabase: async () => { await database.$queryRaw`SELECT 1`; },
     }));

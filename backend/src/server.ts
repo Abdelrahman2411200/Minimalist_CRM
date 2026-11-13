@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import { access } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 import { createApp } from './app.js';
 import { loadAuthConfig, loadConfig } from './config.js';
 import { createDatabase } from './database.js';
@@ -6,9 +8,14 @@ import { createSessionStore } from './modules/auth/session.js';
 
 const config = loadConfig();
 const authConfig = loadAuthConfig();
+if (config.FRONTEND_DIRECTORY) {
+  if (!isAbsolute(config.FRONTEND_DIRECTORY)) throw new Error('FRONTEND_DIRECTORY must be absolute');
+  await access(join(config.FRONTEND_DIRECTORY, 'index.html'));
+}
 const database = createDatabase(config.DATABASE_URL);
 const sessions = createSessionStore(config.DATABASE_URL);
 const app = createApp({
+  frontendDirectory: config.FRONTEND_DIRECTORY,
   api: { database, config: authConfig, store: sessions.store },
   checkDatabase: async () => {
     await database.$queryRaw`SELECT 1`;

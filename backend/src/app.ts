@@ -13,11 +13,12 @@ import { opportunitiesRouter } from './modules/opportunities/router.js';
 
 type AppDependencies = {
   checkDatabase?: () => Promise<void>;
+  frontendDirectory?: string;
   api?: { database: PrismaClient; config: AuthConfig; store: session.Store };
 };
 
 // Importing the app never starts a listener or loads local environment files.
-export function createApp({ checkDatabase, api }: AppDependencies = {}) {
+export function createApp({ checkDatabase, api, frontendDirectory }: AppDependencies = {}) {
   const app = express();
   app.disable('x-powered-by');
 
@@ -48,12 +49,26 @@ export function createApp({ checkDatabase, api }: AppDependencies = {}) {
     router.use(verifyOrigin(api.config.APP_ORIGIN));
     router.use(sessionMiddleware(api.config, api.store));
     router.use('/auth', express.json({ limit: '100kb' }), authRouter(api.database, api.config));
-    router.use(requireAuthentication(api.database));
-    router.use(express.json({ limit: '100kb' }));
-    router.use('/contacts', contactsRouter(api.database));
-    router.use('/leads', leadsRouter(api.database));
-    router.use('/opportunities', opportunitiesRouter(api.database));
+    const authenticated = requireAuthentication(api.database);
+    const json = express.json({ limit: '100kb' });
+    router.use('/contacts', authenticated, json, contactsRouter(api.database));
+    router.use('/leads', authenticated, json, leadsRouter(api.database));
+    router.use('/opportunities', authenticated, json, opportunitiesRouter(api.database));
     app.use('/api', router);
+  }
+
+  // Never let an unknown API URL fall through to the frontend (or an HTML fallback).
+  app.use('/api', (_request, response) => {
+    response.set('Cache-Control', 'no-store');
+    response.status(404).json({ error: { code: 'NOT_FOUND', message: 'API route not found' } });
+  });
+
+  if (frontendDirectory) {
+    // Hash navigation requests only / and real asset paths; missing files remain 404s.
+    app.use(express.static(frontendDirectory, { dotfiles: 'deny', setHeaders(response, path) {
+      response.setHeader('Cache-Control', /[/\\]assets[/\\]/.test(path)
+        ? 'public, max-age=31536000, immutable' : 'no-cache');
+    } }));
   }
 
   app.use((_request, response) => {

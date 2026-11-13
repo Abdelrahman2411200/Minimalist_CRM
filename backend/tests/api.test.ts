@@ -117,6 +117,15 @@ test('Phase 3 authenticated HTTP workflow', { timeout: 180_000 }, async (suite) 
     await runPrisma(['migrate', 'deploy'], isolated.url);
     api = await startApi(database, isolated.url, config);
 
+    await suite.test('unknown API endpoints return JSON 404 before authentication', async () => {
+      for (const path of ['/api', '/api/unknown', '/api/auth/unknown']) {
+        const result = await request('GET', path, { cookie: '' });
+        assert.equal(result.status, 404);
+        assert.match(result.headers.get('content-type')!, /application\/json/);
+        assert.equal(result.body?.error?.code, 'NOT_FOUND');
+      }
+    });
+
     await suite.test('staff provisioning hashes passwords and rejects duplicate usernames', async () => {
       await assert.rejects(provisionStaff(isolated.url, '<username>', password), (error: unknown) => {
         assert.ok(error instanceof Error && 'stderr' in error && typeof error.stderr === 'string');

@@ -1,6 +1,45 @@
 name: minimalist-crm
 
 services:
+  app:
+    image: ${COMPOSE_PROJECT_NAME:-minimalist-crm}-app:local
+    build:
+      context: .
+      target: runtime
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${CRM_NODE_ENV:-development}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-replace-with-local-password}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      APP_ORIGIN: ${CRM_ORIGIN:-http://127.0.0.1:8080}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    image: ${COMPOSE_PROJECT_NAME:-minimalist-crm}-migrate:local
+    build:
+      context: .
+      target: migrate
+    restart: "no"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-replace-with-local-password}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:18-alpine
     environment:

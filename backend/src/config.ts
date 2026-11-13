@@ -4,6 +4,7 @@ const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().trim().min(1).default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  FRONTEND_DIRECTORY: z.string().trim().min(1).optional(),
   DATABASE_URL: z.string().url().refine(
     (value) => /^postgres(?:ql)?:\/\//.test(value),
     'Expected a PostgreSQL connection URL',
@@ -11,7 +12,20 @@ const environmentSchema = z.object({
 });
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env) {
-  const result = environmentSchema.safeParse(environment);
+  let databaseUrl = environment.DATABASE_URL;
+  if (!databaseUrl && environment.POSTGRES_HOST) {
+    // Containers receive separate credentials so URL-reserved characters round-trip safely.
+    const fields = ['POSTGRES_HOST', 'POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_DB'] as const;
+    const missing = fields.filter((field) => !environment[field]);
+    if (missing.length) throw new Error(`Invalid server configuration: ${missing.join(', ')} required`);
+    const url = new URL('postgresql://postgres:5432');
+    url.hostname = environment.POSTGRES_HOST;
+    url.username = encodeURIComponent(environment.POSTGRES_USER!);
+    url.password = encodeURIComponent(environment.POSTGRES_PASSWORD!);
+    url.pathname = `/${encodeURIComponent(environment.POSTGRES_DB!)}`;
+    databaseUrl = url.toString();
+  }
+  const result = environmentSchema.safeParse({ ...environment, DATABASE_URL: databaseUrl });
 
   if (!result.success) {
     // Report field names and validation messages without echoing environment values.
