@@ -2,7 +2,18 @@
 
 A lightweight CRM for tracking contacts, qualifying leads, and managing sales opportunities.
 
-**Current checkpoint: Phase 5.** Docker Compose builds and serves the full React dashboard and protected API from one origin, applies versioned migrations before startup, and retains PostgreSQL records in a named volume. Pull requests and pushes to `main` run the CI checks. The same React screens also build as a standalone fictional demo. Both targets use hash navigation.
+**Current checkpoint: Phase 6.** The full CRM runs through Docker Compose, and successful CI on `main` builds, verifies, and publishes the fictional demo to GitHub Pages. Both targets use the same React screens and hash navigation. See [Pages setup and hosted checks](docs/github-pages.md) for publishing configuration and verification.
+
+## Architecture
+
+| Layer | Technology | Role |
+| --- | --- | --- |
+| Dashboard | React, Vite, TypeScript | Contact, lead, and opportunity tables, forms, and sales history |
+| REST API | Node.js, Express, TypeScript | Staff sign-in, sessions, validation, and shared CRM operations |
+| Database | PostgreSQL, Prisma | Records, staff accounts, sessions, and versioned migrations |
+| Delivery | Docker Compose, GitHub Actions, GitHub Pages | Local full app, automated checks, and fictional portfolio demo |
+| Planned hosting | GitHub Container Registry and an HTTPS container host/VPS | Full CRM deployment in Phase 7 |
+| Planned monitoring | Prometheus and Grafana | Traffic, 5xx error rate, and p95 latency in Phase 8 |
 
 ## Runtime and installation
 
@@ -70,7 +81,7 @@ cp frontend/.env.example frontend/.env
 | `API_PROXY_TARGET` | `frontend/.env` | `http://127.0.0.1:3000` | Server-side Vite development proxy target |
 | `VITE_APP_TITLE` | `frontend/.env` | `Minimalist CRM` | Public dashboard title |
 | `VITE_BASE_PATH` | `frontend/.env` | `/` | Asset base with leading and trailing slashes |
-| `VITE_FULL_CRM_URL` | `frontend/.env` | Empty | Optional public link from the demo to the hosted CRM |
+| `VITE_FULL_CRM_URL` | `frontend/.env` | Empty | Optional public link from the demo to the hosted CRM; Pages maps the repository variable `FULL_CRM_URL` to this |
 
 The backend validates configuration before binding its listener. When changing the backend address or port, update `API_PROXY_TARGET` to match. When changing database credentials or ports, update the relevant database URLs too. Percent-encode special characters in URL credentials. Restart development servers after editing environment files. `VITE_*` values are public build-time values. Keep credentials and session secrets on the server.
 
@@ -247,7 +258,7 @@ The Contacts view combines search by name, company, or email with source and sta
 npm run dev:demo --workspace frontend
 ```
 
-The demo label explains that records are fictional and changes reset on reload. It uses reserved `.test` email addresses and keeps edits only in the running page. It makes zero CRM API requests and uses no browser persistence. Set `VITE_FULL_CRM_URL=https://<crm-domain>` to display an external **Open full CRM** link. That setting is public and must contain an HTTP(S) URL without embedded credentials.
+The demo label explains that records are fictional and changes reset on reload. It uses reserved `.test` email addresses and keeps edits only in the running page. It makes zero CRM API requests and uses no browser persistence. Set `VITE_FULL_CRM_URL=https://<crm-domain>` locally, or the Actions repository variable `FULL_CRM_URL` for Pages, to display an external **Open full CRM** link. That setting is public and must contain an HTTP(S) URL without embedded credentials.
 
 The shared `CrmData` interface lives in `frontend/src/data/types.ts`. Vite aliases `@crm-data` to `http.ts` for full/development builds and `demo.ts` for demo builds. The demo imports the API's pure input schemas to keep validation consistent. Relationships, unique leads, nullable contact fields, exact decimal strings, and date-only values are enforced by the in-memory adapter. Its fixture source is independent of database records.
 
@@ -263,7 +274,9 @@ npm run build:full --workspace frontend
 npm run build:demo --workspace frontend
 ```
 
-Each target writes `frontend/dist/`. Build the target you plan to serve. The root `npm run build` selects the full frontend target. For GitHub Pages, set `VITE_BASE_PATH=/<repo>/` in the frontend build environment, or `/` for an owner site. The base affects static assets and the browser path, while navigation stays in the hash, such as `https://<owner>.github.io/<repo>/#/contacts`.
+Each target writes `frontend/dist/`. Build the target you plan to serve. The root `npm run build` selects the full frontend target. The Pages workflow automatically selects `VITE_BASE_PATH=/<repo>/`, or `/` when the repository is `<owner>.github.io`. The base affects static assets and the browser path, while navigation stays in the hash, such as `https://<owner>.github.io/<repo>/#/contacts`.
+
+In **Settings > Pages > Build and deployment > Source**, select **GitHub Actions**. Set the optional `FULL_CRM_URL` under **Settings > Secrets and variables > Actions > Variables**. See [GitHub Pages](docs/github-pages.md) for the exact startup, artifact, and browser verification steps.
 
 `npm run preview --workspace frontend` serves the current build for local inspection. If its base is `/<repo>/`, open the preview URL with that path appended.
 
@@ -349,9 +362,15 @@ The preview server is for static inspection. The Docker runtime serves the full 
 
 ## Continuous integration
 
-[CI](.github/workflows/ci.yml) runs on pull requests and pushes to `main`, with read-only repository permissions and no deployment credentials. It selects the Node version in `.nvmrc`, uses `npm ci` with the single root lockfile, runs lint and type checking, builds the API and both frontend variants, applies migrations to a disposable PostgreSQL 18 service, runs database/API integration and demo adapter tests, and builds both Docker image targets. Test suites create and drop their own databases within that disposable service. Image builds do not publish or deploy anything.
+[CI](.github/workflows/ci.yml) runs verification on pull requests and pushes to `main` with read-only repository permissions. It selects the Node version in `.nvmrc`, uses `npm ci` with the single root lockfile, runs lint and type checking, builds the API and both frontend variants, applies migrations to a disposable PostgreSQL 18 service, runs database/API integration and demo adapter tests, and builds both Docker image targets. Test suites create and drop their own databases within that disposable service. Container image builds do not publish or deploy images.
 
-The commands above reproduce the checks locally. Hosted workflow results will be available after these changes are pushed to GitHub; local verification does not establish a hosted CI result.
+After verification succeeds on a push to `main`, `pages-build` makes a fresh demo build, checks its static contents, and runs the complete browser workflow without an API or database. It uploads **only `frontend/dist`** using the official Pages artifact action. `pages-deploy` uses the official configure/deploy actions and the `github-pages` environment. Only that deploy job receives `pages: write` and `id-token: write`. Pull requests never publish.
+
+`npm run test:pages --workspace frontend` tests an already-built demo under `VITE_BASE_PATH`, or checks a published site when `PAGES_URL` is supplied; no database or API is required.
+
+```sh
+npm run test:pages --workspace frontend
+```
 
 See the [Phase 5 verification report](docs/phase-5-verification.md) for the commands actually run, changed paths, local results, and remaining hosted verification.
 
@@ -373,7 +392,8 @@ See the [Phase 5 verification report](docs/phase-5-verification.md) for the comm
 | `backend/tests/api.test.ts` | Authenticated HTTP workflows against a disposable database |
 | `compose.yaml` | Full application, one-shot migrations, persistent PostgreSQL, and temporary test PostgreSQL |
 | `Dockerfile`, `.dockerignore`, `docker/` | Multi-stage runtime/migration images, build exclusions, and container migration configuration |
-| `.github/workflows/ci.yml` | Pull-request and main branch verification |
+| `.github/workflows/ci.yml` | Pull-request/main verification and CI-gated Pages build/deploy jobs |
+| `docs/github-pages.md` | Pages settings, public link configuration, artifact isolation, and hosted/local verification |
 | `backend/tests/frontend.test.ts` | Same-origin static serving, asset caching, and JSON 404 checks |
 | `docs/containers.md` | Container startup, account provisioning, readiness, and data retention |
 | `docs/api-contract.md` | Money/date formats, relationships, and session storage |
@@ -381,7 +401,7 @@ See the [Phase 5 verification report](docs/phase-5-verification.md) for the comm
 | `frontend/src/pages/` | Contact, lead, and opportunity lists, details, and forms |
 | `frontend/src/data/` | Shared data interface, HTTP adapter, in-memory adapter, and synthetic fixtures |
 | `frontend/src/components/` | Accessible shared fields, forms, status feedback, and table helpers |
-| `frontend/tests/` | Adapter tests and browser workflows for both targets |
+| `frontend/tests/` | Adapter tests, shared sales workflow, full/demo browser tests, and Pages artifact/hosted checks |
 | `frontend/vite.config.ts` | React build, configurable base, and `/api` development proxy |
 | `eslint.config.mjs` | Shared TypeScript and React lint rules |
 | `package.json`, `package-lock.json` | Workspace commands and reproducible dependencies |
@@ -408,7 +428,7 @@ The implemented routes are `POST /api/auth/login`, `POST /api/auth/logout`, `GET
 | 3 | Staff sign-in, PostgreSQL sessions, protected API, integration tests | Implemented |
 | 4 | CRM screens and build-selected HTTP/in-memory data adapters | Implemented |
 | 5 | Same-origin container, Docker Compose, GitHub Actions CI | Implemented |
-| 6 | Standalone synthetic GitHub Pages demo | Planned |
+| 6 | Standalone synthetic GitHub Pages demo | Implemented |
 | 7 | GHCR images, HTTPS VPS deployment, migrations and rollback | Planned |
 | 8 | Private Prometheus/Grafana, logs, verified backups and recovery | Planned |
 

@@ -72,3 +72,61 @@ jobs:
         run: docker build --target runtime --tag minimalist-crm:ci .
       - name: Validate migration image
         run: docker build --target migrate --tag minimalist-crm-migrate:ci .
+
+  pages-build:
+    name: Build Pages demo
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      NODE_ENV: production
+      VITE_BASE_PATH: ${{ github.event.repository.name == format('{0}.github.io', github.repository_owner) && '/' || format('/{0}/', github.event.repository.name) }}
+      VITE_FULL_CRM_URL: ${{ vars.FULL_CRM_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked workspaces
+        run: npm ci --include=dev
+      - name: Build standalone fictional demo
+        run: npm run build:demo --workspace frontend
+      - name: Install verification browser
+        run: npm exec --workspace frontend -- playwright install --with-deps chromium
+      - name: Verify the exact Pages artifact without an API
+        run: npm run test:pages --workspace frontend
+      - name: Upload only the static demo
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend/dist
+
+  pages-deploy:
+    name: Deploy Pages demo
+    needs: pages-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy the tested static artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

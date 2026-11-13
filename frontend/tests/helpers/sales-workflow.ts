@@ -1,0 +1,80 @@
+import { expect, type Page } from '@playwright/test';
+
+export async function contactsTab(page: Page) {
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Contacts', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Contacts', exact: true })).toBeVisible();
+}
+
+export async function salesWorkflow(page: Page) {
+  await contactsTab(page);
+  await page.getByRole('link', { name: 'Add contact', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Create contact', exact: true }).click();
+  await expect(page.getByLabel('First name', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await page.getByLabel('First name', { exact: true }).fill('Vera');
+  await page.getByLabel('Last name', { exact: true }).fill('Workflow');
+  await page.getByLabel('Email', { exact: true }).fill('vera@example.test');
+  await page.getByLabel('Company', { exact: true }).fill('Synthetic Browser Company');
+  await page.getByLabel('Lead source', { exact: true }).fill('Website Form');
+  await page.getByLabel('Phone (optional)', { exact: true }).fill('01000000000');
+  await page.getByLabel('Notes (optional)', { exact: true }).fill('Synthetic browser notes\nSecond line');
+  await page.getByRole('button', { name: 'Create contact', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Vera Workflow', exact: true })).toBeVisible();
+  const contactUrl = page.url();
+  await page.getByRole('link', { name: 'Edit contact', exact: true }).click();
+  await expect(page.getByLabel('Notes (optional)', { exact: true })).toHaveValue('Synthetic browser notes\nSecond line');
+  await page.getByLabel('Company', { exact: true }).fill('Synthetic Updated Company');
+  await page.getByRole('button', { name: 'Save contact', exact: true }).click();
+  await expect(page.getByText('Synthetic Updated Company', { exact: true })).toBeVisible();
+  await expect(page.getByText('01000000000', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Qualify lead', exact: true }).click();
+  await page.getByLabel('Lead score (1–10)', { exact: true }).fill('7');
+  await page.getByRole('button', { name: 'Create lead', exact: true }).click();
+  await expect(page.getByText('Prospecting', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Edit lead', exact: true }).click();
+  await page.getByLabel('Lead score (1–10)', { exact: true }).fill('9');
+  await page.getByLabel('Stage', { exact: true }).selectOption('Qualification');
+  await page.getByRole('button', { name: 'Save lead', exact: true }).click();
+  await expect(page.getByText('9 / 10', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Add opportunity', exact: true }).click();
+  await page.getByLabel('Opportunity name', { exact: true }).fill('Synthetic browser opportunity');
+  await page.getByLabel('Estimated value (EGP)', { exact: true }).fill('1.234');
+  await page.getByLabel('Expected close date', { exact: true }).fill('2028-02-29');
+  await page.getByRole('button', { name: 'Create opportunity', exact: true }).click();
+  await expect(page.getByLabel('Estimated value (EGP)', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await page.getByLabel('Estimated value (EGP)', { exact: true }).fill('30000.25');
+  await page.getByRole('button', { name: 'Create opportunity', exact: true }).click();
+  await expect(page.getByText('EGP 30,000.25', { exact: true })).toBeVisible();
+  await expect(page.getByText('29 Feb 2028', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Edit opportunity', exact: true }).click();
+  await expect(page.getByLabel('Estimated value (EGP)', { exact: true })).toHaveValue('30000.25');
+  await expect(page.getByLabel('Expected close date', { exact: true })).toHaveValue('2028-02-29');
+  await page.getByLabel('Estimated value (EGP)', { exact: true }).fill('999999999999.99');
+  await page.getByLabel('Expected close date', { exact: true }).fill('2030-11-03');
+  await page.getByRole('button', { name: 'Save opportunity', exact: true }).click();
+  await expect(page.getByText('EGP 999,999,999,999.99', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Edit opportunity', exact: true }).click();
+  await page.getByLabel('Opportunity name', { exact: true }).fill('Synthetic edited opportunity');
+  await page.getByRole('button', { name: 'Save opportunity', exact: true }).click();
+  await expect(page.getByText('EGP 999,999,999,999.99', { exact: true })).toBeVisible();
+  await expect(page.getByText('3 Nov 2030', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'View contact and sales history', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Synthetic edited opportunity', exact: true })).toBeVisible();
+  await expect(page.getByText('Qualification', { exact: true })).toBeVisible();
+  await contactsTab(page);
+  await page.getByLabel('Search contacts', { exact: true }).fill('VERA WORKFLOW');
+  await page.getByLabel('Lead source', { exact: true }).selectOption('Website Form');
+  await page.getByLabel('Lead stage', { exact: true }).selectOption('Qualification');
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(page).toHaveURL((url) => {
+    const filters = new URLSearchParams(url.hash.split('?')[1]);
+    return filters.get('search') === 'VERA WORKFLOW' && filters.get('source') === 'Website Form' && filters.get('stage') === 'Qualification';
+  });
+  await expect(page.getByRole('link', { name: 'Vera Workflow', exact: true })).toBeVisible();
+  await expect(page.getByRole('row')).toHaveCount(2);
+  await page.getByLabel('Search contacts', { exact: true }).fill('No matching synthetic name');
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No contacts match these filters' })).toBeVisible();
+  await page.getByRole('link', { name: 'Clear filters', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Vera Workflow', exact: true }).click();
+  return contactUrl;
+}

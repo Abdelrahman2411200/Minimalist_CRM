@@ -14,6 +14,7 @@
     "build:demo": "tsc -b && vite build --mode demo",
     "test": "tsx --test tests/data.test.ts",
     "test:e2e": "npm run db:generate --workspace @minimalist-crm/backend && tsx --test tests/browser.test.ts",
+    "test:pages": "tsx --test tests/pages.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
