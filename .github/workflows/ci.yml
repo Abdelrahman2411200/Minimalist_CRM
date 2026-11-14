@@ -138,7 +138,7 @@ jobs:
       - name: Publish commit-SHA tags without rebuilding
         run: |
           repository="ghcr.io/${GITHUB_REPOSITORY,,}"
-          runtime="$repository:sha-$GITHUB_SHA"
+          runtime="$repository-app:sha-$GITHUB_SHA"
           migration="$repository-migrate:sha-$GITHUB_SHA"
           docker tag "minimalist-crm:sha-$GITHUB_SHA" "$runtime"
           docker tag "minimalist-crm-migrate:sha-$GITHUB_SHA" "$migration"
@@ -149,7 +149,7 @@ jobs:
       - name: Verify registry readback matches the tested images
         run: |
           repository="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker pull "$repository:sha-$GITHUB_SHA"
+          docker pull "$repository-app:sha-$GITHUB_SHA"
           docker pull "$repository-migrate:sha-$GITHUB_SHA"
           python3 - <<'PY'
           import json, os, subprocess
@@ -157,7 +157,7 @@ jobs:
           sha = os.environ['GITHUB_SHA']
           def identity(name):
               return json.loads(subprocess.check_output(['docker', 'image', 'inspect', name]))[0]['Id']
-          assert identity(repository + ':sha-' + sha) == identity('minimalist-crm:sha-' + sha)
+          assert identity(repository + '-app:sha-' + sha) == identity('minimalist-crm:sha-' + sha)
           assert identity(repository + '-migrate:sha-' + sha) == identity('minimalist-crm-migrate:sha-' + sha)
           PY
       - name: Clear registry credentials

@@ -34,8 +34,9 @@ def main():
     stage = os.getenv("DEPLOY_ENVIRONMENT") == "staging"
     if stage and (not os.getenv("CRM_SMOKE_USERNAME") or not os.getenv("CRM_SMOKE_PASSWORD")):
         raise RuntimeError("Staging requires an already-provisioned authorized smoke-test account.")
-    repository = os.getenv("IMAGE_REPOSITORY") or "ghcr.io/" + os.environ["GITHUB_REPOSITORY"].lower()
-    migration_repository = os.getenv("MIGRATION_IMAGE_REPOSITORY") or repository + "-migrate"
+    default_repository = "ghcr.io/" + os.environ["GITHUB_REPOSITORY"].lower()
+    repository = os.getenv("IMAGE_REPOSITORY") or default_repository + "-app"
+    migration_repository = os.getenv("MIGRATION_IMAGE_REPOSITORY") or (repository + "-migrate" if os.getenv("IMAGE_REPOSITORY") else default_repository + "-migrate")
     if any(not re.fullmatch(r"[a-z0-9][a-z0-9._:/-]+", value) for value in (repository, migration_repository)):
         raise RuntimeError("Invalid configurable image repository.")
     image, migration = f"{repository}:sha-{sha}", f"{migration_repository}:sha-{sha}"

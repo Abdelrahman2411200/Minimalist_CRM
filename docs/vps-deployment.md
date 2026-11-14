@@ -8,10 +8,10 @@ On pull requests and pushes to `main`, [CI](../.github/workflows/ci.yml) builds 
 
 After all verification succeeds on `main`, CI exports those exact image identities to the short-lived `crm-release-images` artifact. The publish job downloads that artifact from the same run, verifies its image IDs and commit labels, then tags and pushes it without rebuilding:
 
-- `ghcr.io/<owner>/<repo>:sha-<full-40-character-commit-sha>`
+- `ghcr.io/<owner>/<repo>-app:sha-<full-40-character-commit-sha>`
 - `ghcr.io/<owner>/<repo>-migrate:sha-<same-commit-sha>`
 
-Registry paths are lowercase. For this repository they are `ghcr.io/abdelrahman2411200/minimalist_crm` and `ghcr.io/abdelrahman2411200/minimalist_crm-migrate`. The workflow summary includes tags and registry digests. Prefer retaining the digest alongside the SHA tag when recording a release. The publisher alone receives `packages: write`; it authenticates with the scoped `GITHUB_TOKEN`, supplied through stdin, and logs out afterward. Pull requests never publish. Release archives expire after one day; successful registry images remain available independently of that archive.
+Registry paths are lowercase. For this repository they are `ghcr.io/abdelrahman2411200/minimalist_crm-app` and `ghcr.io/abdelrahman2411200/minimalist_crm-migrate`. The workflow summary includes tags and registry digests. Prefer retaining the digest alongside the SHA tag when recording a release. The publisher alone receives `packages: write`; it authenticates with the scoped `GITHUB_TOKEN`, supplied through stdin, and logs out afterward. Pull requests never publish. Release archives expire after one day; successful registry images remain available independently of that archive.
 
 GHCR package visibility is controlled in the package settings. Public packages can be pulled anonymously; private packages require an authorized read credential on the VPS. See GitHub's [Container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry). Production database credentials and session secrets are never build inputs, image layers, release artifacts, or frontend values.
 
