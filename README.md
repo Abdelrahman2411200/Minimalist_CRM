@@ -2,7 +2,7 @@
 
 A lightweight CRM for tracking contacts, qualifying leads, and managing sales opportunities. Staff can follow a customer from the first inquiry to a closed sale in a single dashboard.
 
-**Current checkpoint: Phase 6.** The full CRM runs through Docker Compose, and successful CI on `main` builds, verifies, and publishes the fictional demo to GitHub Pages. Both targets use the same React screens and hash navigation. See [Pages setup and hosted checks](docs/github-pages.md) for publishing configuration and verification.
+**Current checkpoint: Phase 7.** Successful CI publishes the fictional Pages demo and the tested full CRM/migration images to GHCR with commit-SHA tags. The [VPS reference](docs/vps-deployment.md) provides private networks, Caddy HTTPS, migration-before-switch deployment, schema-reviewed rollback, and an opt-in SSH deployment job. A real full-app host must be configured before its hosted checks can run. Both targets use the same React screens and hash navigation.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ A lightweight CRM for tracking contacts, qualifying leads, and managing sales op
 | REST API | Node.js, Express, TypeScript | Staff sign-in, sessions, validation, and shared CRM operations |
 | Database | PostgreSQL, Prisma | Records, staff accounts, sessions, and versioned migrations |
 | Delivery | Docker Compose, GitHub Actions, GitHub Pages | Local full app, automated checks, and fictional portfolio demo |
-| Planned hosting | GitHub Container Registry and an HTTPS container host/VPS | Full CRM deployment in Phase 7 |
+| Full CRM hosting | GitHub Container Registry, Caddy, Docker Compose, and an HTTPS VPS | Tested image releases and configurable deployment reference |
 | Planned monitoring | Prometheus and Grafana | Traffic, 5xx error rate, and p95 latency in Phase 8 |
 
 ## Runtime and installation
@@ -105,7 +105,7 @@ docker compose up --build -d --wait app
 docker compose exec app node dist/scripts/provision-user.js
 ```
 
-Open <http://127.0.0.1:8080/#/contacts> and sign in. Express serves the full frontend and `/api` at that same origin. Fresh databases start without CRM fixtures or staff accounts; provisioning is explicit. The local Compose target uses HTTP on loopback. For an HTTPS host, set `CRM_NODE_ENV=production`, `CRM_ORIGIN=https://<crm-domain>`, and the appropriate trusted proxy configuration; production cookies are Secure. HTTPS deployment is Phase 7.
+Open <http://127.0.0.1:8080/#/contacts> and sign in. Express serves the full frontend and `/api` at that same origin. Fresh databases start without CRM fixtures or staff accounts; provisioning is explicit. The local Compose target uses HTTP on loopback. Use the separate [VPS deployment reference](docs/vps-deployment.md) for production HTTPS, private app/database networks, and Secure cookies.
 
 `docker compose restart postgres app` restarts the services while retaining records and PostgreSQL-backed sessions.
 
@@ -358,11 +358,13 @@ curl -i http://127.0.0.1:3000/health
 npm run preview --workspace frontend
 ```
 
-The preview server is for static inspection. The Docker runtime serves the full frontend and `/api` through Express; HTTPS termination is part of the deployment phase.
+The preview server is for static inspection. The Docker runtime serves the full frontend and `/api` through Express; the production reference terminates HTTPS at Caddy.
 
 ## Continuous integration
 
-[CI](.github/workflows/ci.yml) runs verification on pull requests and pushes to `main` with read-only repository permissions. It selects the Node version in `.nvmrc`, uses `npm ci` with the single root lockfile, runs lint and type checking, builds the API and both frontend variants, applies migrations to a disposable PostgreSQL 18 service, runs database/API integration and demo adapter tests, and builds both Docker image targets. Test suites create and drop their own databases within that disposable service. Container image builds do not publish or deploy images.
+[CI](.github/workflows/ci.yml) runs verification on pull requests and pushes to `main` with read-only repository permissions. It selects the Node version in `.nvmrc`, uses `npm ci` with the single root lockfile, runs lint and type checking, builds the API and both frontend variants, applies migrations to a disposable PostgreSQL 18 service, runs database/API integration and demo adapter tests, and builds both Docker image targets. It also runs deployment unit checks and the isolated production HTTPS/migration/restart/rollback verifier. Test databases and deployment stacks are disposable.
+
+On successful `main` pushes, CI archives the exact tested image pair. A separate `packages: write` job loads and checks those image IDs, publishes runtime/migration `sha-<full-commit>` tags to GHCR without rebuilding, and pulls them back to verify registry identity. See [image release and server setup](docs/vps-deployment.md). Real VPS deployment is an opt-in protected-environment workflow; production database/session secrets stay on the server.
 
 After verification succeeds on a push to `main`, `pages-build` makes a fresh demo build, checks its static contents, and runs the complete browser workflow without an API or database. It uploads **only `frontend/dist`** using the official Pages artifact action. `pages-deploy` uses the official configure/deploy actions and the `github-pages` environment. Only that deploy job receives `pages: write` and `id-token: write`. Pull requests never publish.
 
@@ -393,6 +395,10 @@ See the [Phase 5 verification report](docs/phase-5-verification.md) for the comm
 | `compose.yaml` | Full application, one-shot migrations, persistent PostgreSQL, and temporary test PostgreSQL |
 | `Dockerfile`, `.dockerignore`, `docker/` | Multi-stage runtime/migration images, build exclusions, and container migration configuration |
 | `.github/workflows/ci.yml` | Pull-request/main verification and CI-gated Pages build/deploy jobs |
+| `.github/workflows/deploy-vps.yml` | Opt-in protected staging/production SSH deployment and HTTPS verification |
+| `deploy/` | Production Compose, Caddy HTTPS, private configuration setup, deployment/rollback controller, smoke checks, and unit tests |
+| `backend/scripts/verify-production.ts` | Isolated trusted HTTPS deployment, failure recovery, restart, and schema-compatible rollback verification |
+| `docs/vps-deployment.md` | Registry access, VPS prerequisites, secrets, deployment, rollback, and pending hosted checks |
 | `docs/github-pages.md` | Pages settings, public link configuration, artifact isolation, and hosted/local verification |
 | `backend/tests/frontend.test.ts` | Same-origin static serving, asset caching, and JSON 404 checks |
 | `docs/containers.md` | Container startup, account provisioning, readiness, and data retention |
@@ -429,9 +435,9 @@ The implemented routes are `POST /api/auth/login`, `POST /api/auth/logout`, `GET
 | 4 | CRM screens and build-selected HTTP/in-memory data adapters | Implemented |
 | 5 | Same-origin container, Docker Compose, GitHub Actions CI | Implemented |
 | 6 | Standalone synthetic GitHub Pages demo | Implemented |
-| 7 | GHCR images, HTTPS VPS deployment, migrations and rollback | Planned |
+| 7 | GHCR images, HTTPS VPS deployment, migrations and rollback | Implemented reference; hosted VPS verification requires configuration |
 | 8 | Private Prometheus/Grafana, logs, verified backups and recovery | Planned |
 
 The full CRM will run at `https://<crm-domain>/` with sign-in and persistent records. The portfolio at `https://<owner>.github.io/<repo>/` will use fictional records in browser memory, reset changes on reload, display a demo label, and work without an API or credentials. Both will use the same screens with build-selected adapters and hash routes. A configured URL will optionally link the demo to the full CRM.
 
-Local checks include both frontend targets, the full Docker image, fresh migrations, and persistence through ordinary restart and container recreation. Hosted deployments remain future work. Operations will include private request-rate, 5xx-error, and p95-latency metrics, request IDs without sensitive record data in logs, and backup restores verified against a disposable database.
+Local checks include both frontend targets, fresh migrations, production HTTPS/session behavior, restart persistence, and a previous-image rollback retaining a compatible newer schema. The Pages demo is hosted; a full CRM VPS is verified only after its host/DNS/credentials are configured. Operations will include private request-rate, 5xx-error, and p95-latency metrics, request IDs without sensitive record data in logs, and backup restores verified against a disposable database.

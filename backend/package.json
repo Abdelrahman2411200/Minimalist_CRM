@@ -20,6 +20,7 @@
     "test": "prisma generate && tsx --test tests/*.test.ts",
     "test:integration": "prisma generate && tsx --test tests/api.test.ts",
     "test:compose": "tsx scripts/verify-compose.ts",
+    "test:production": "tsx scripts/verify-production.ts",
     "auth:setup": "tsx scripts/setup-auth.ts",
     "staff:create": "prisma generate && tsx scripts/provision-user.ts"
   },

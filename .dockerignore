@@ -10,3 +10,4 @@
 **/test-results
 backend/src/generated
 Minimalist-CRM-Implementation-Plan.md
+deploy/.deployment*

@@ -23,7 +23,7 @@ Only `frontend/dist` is passed to `actions/upload-pages-artifact@v4`. Source fil
 
 `pages-deploy` needs the tested build and uses `actions/configure-pages@v5` and `actions/deploy-pages@v4`. Only this job receives `pages: write` and `id-token: write`, and it deploys through the `github-pages` environment. It performs no checkout or build and cannot publish an unverified working directory. Pull requests and failed verification do not deploy. No personal access token or production server secret is required in workflow configuration.
 
-This follows GitHub's [custom Pages workflow guidance](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages). GitHub Pages serves the fictional static demo; the authenticated full app and container image publication remain separate deployment work.
+This follows GitHub's [custom Pages workflow guidance](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages). GitHub Pages serves the fictional static demo; the authenticated full app's image releases and optional VPS hosting use the separate [production deployment flow](vps-deployment.md).
 
 ## Local verification under the intended path
 

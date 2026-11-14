@@ -69,9 +69,100 @@ jobs:
       - name: Demo adapter tests
         run: npm test --workspace frontend
       - name: Validate runtime image
-        run: docker build --target runtime --tag minimalist-crm:ci .
+        run: docker build --target runtime --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --tag "minimalist-crm:sha-$GITHUB_SHA" .
       - name: Validate migration image
-        run: docker build --target migrate --tag minimalist-crm-migrate:ci .
+        run: docker build --target migrate --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --tag "minimalist-crm-migrate:sha-$GITHUB_SHA" .
+      - name: Verify deployment validation and schema compatibility rules
+        run: python3 -m unittest discover -s deploy -p test_deploy.py -v
+      - name: Verify production HTTPS, migrations, restart and rollback
+        run: npm run test:production --workspace backend
+        env:
+          CRM_TEST_IMAGE: minimalist-crm:sha-${{ github.sha }}
+          CRM_TEST_MIGRATION_IMAGE: minimalist-crm-migrate:sha-${{ github.sha }}
+      - name: Export exactly the tested image pair
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker save "minimalist-crm:sha-$GITHUB_SHA" "minimalist-crm-migrate:sha-$GITHUB_SHA" | gzip > "$RUNNER_TEMP/crm-release-images.tar.gz"
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          sha = os.environ['GITHUB_SHA']
+          def image_id(name):
+              return json.loads(subprocess.check_output(['docker', 'image', 'inspect', name]))[0]['Id']
+          data = {'revision': sha, 'runtime_id': image_id('minimalist-crm:sha-' + sha), 'migration_id': image_id('minimalist-crm-migrate:sha-' + sha)}
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'crm-release-images.json').write_text(json.dumps(data))
+          PY
+      - name: Upload tested release images for promotion
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: crm-release-images
+          path: |
+            ${{ runner.temp }}/crm-release-images.tar.gz
+            ${{ runner.temp }}/crm-release-images.json
+          retention-days: 1
+          compression-level: 0
+
+  publish-images:
+    name: Publish tested GHCR images
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download the verified image pair from this run
+        uses: actions/download-artifact@v8
+        with:
+          name: crm-release-images
+          path: ${{ runner.temp }}/release
+      - name: Load and verify exact image identities
+        run: |
+          gzip -dc "$RUNNER_TEMP/release/crm-release-images.tar.gz" | docker load
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          sha = os.environ['GITHUB_SHA']
+          data = json.loads(pathlib.Path(os.environ['RUNNER_TEMP'], 'release', 'crm-release-images.json').read_text())
+          assert data['revision'] == sha
+          for name, key in [('minimalist-crm', 'runtime_id'), ('minimalist-crm-migrate', 'migration_id')]:
+              image = json.loads(subprocess.check_output(['docker', 'image', 'inspect', name + ':sha-' + sha]))[0]
+              assert image['Id'] == data[key]
+              assert image['Config']['Labels']['org.opencontainers.image.revision'] == sha
+          PY
+      - name: Sign in to GHCR with the scoped job token
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish commit-SHA tags without rebuilding
+        run: |
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          runtime="$repository:sha-$GITHUB_SHA"
+          migration="$repository-migrate:sha-$GITHUB_SHA"
+          docker tag "minimalist-crm:sha-$GITHUB_SHA" "$runtime"
+          docker tag "minimalist-crm-migrate:sha-$GITHUB_SHA" "$migration"
+          docker push "$migration"
+          docker push "$runtime"
+          printf 'Published tested runtime: %s\n\nMigration image: %s\n' "$runtime" "$migration" >> "$GITHUB_STEP_SUMMARY"
+          docker image inspect --format '{{json .RepoDigests}}' "$runtime" "$migration" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify registry readback matches the tested images
+        run: |
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker pull "$repository:sha-$GITHUB_SHA"
+          docker pull "$repository-migrate:sha-$GITHUB_SHA"
+          python3 - <<'PY'
+          import json, os, subprocess
+          repository = 'ghcr.io/' + os.environ['GITHUB_REPOSITORY'].lower()
+          sha = os.environ['GITHUB_SHA']
+          def identity(name):
+              return json.loads(subprocess.check_output(['docker', 'image', 'inspect', name]))[0]['Id']
+          assert identity(repository + ':sha-' + sha) == identity('minimalist-crm:sha-' + sha)
+          assert identity(repository + '-migrate:sha-' + sha) == identity('minimalist-crm-migrate:sha-' + sha)
+          PY
+      - name: Clear registry credentials
+        if: always()
+        run: docker logout ghcr.io
 
   pages-build:
     name: Build Pages demo

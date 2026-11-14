@@ -1,0 +1,53 @@
+name: Deploy VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full 40-character SHA from a successful published release
+        type: string
+        required: true
+      environment:
+        description: Protected GitHub deployment environment
+        type: choice
+        options: [staging, production]
+        default: staging
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.CRM_ORIGIN }}
+    concurrency:
+      group: vps-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      RELEASE_SHA: ${{ inputs.commit_sha }}
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_USER: ${{ vars.VPS_USER }}
+      VPS_PORT: ${{ vars.VPS_PORT }}
+      VPS_PATH: ${{ vars.VPS_PATH }}
+      CRM_ORIGIN: ${{ vars.CRM_ORIGIN }}
+      IMAGE_REPOSITORY: ${{ vars.IMAGE_REPOSITORY }}
+      MIGRATION_IMAGE_REPOSITORY: ${{ vars.MIGRATION_IMAGE_REPOSITORY }}
+      REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
+      VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_READ_TOKEN: ${{ secrets.REGISTRY_READ_TOKEN }}
+      CRM_SMOKE_USERNAME: ${{ secrets.CRM_SMOKE_USERNAME }}
+      CRM_SMOKE_PASSWORD: ${{ secrets.CRM_SMOKE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Deploy the selected image and verify HTTPS
+        run: python3 deploy/remote.py

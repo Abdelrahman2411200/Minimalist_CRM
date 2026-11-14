@@ -10,3 +10,6 @@ coverage/
 .DS_Store
 backend/src/generated/
 frontend/test-results/
+__pycache__/
+deploy/.deployment-state.json*
+deploy/.deployment.lock

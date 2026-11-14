@@ -1,0 +1,85 @@
+name: ${COMPOSE_PROJECT_NAME:-minimalist-crm-production}
+
+services:
+  proxy:
+    image: ${CADDY_IMAGE:-caddy:2.11.9-alpine}
+    restart: unless-stopped
+    environment:
+      CRM_HOST: ${CRM_HOST:?Set CRM_HOST}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    ports:
+      - "${PROXY_BIND:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${PROXY_BIND:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${CADDYFILE_PATH:-./Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge, frontend]
+    depends_on:
+      app:
+        condition: service_healthy
+
+  app:
+    image: ${CRM_IMAGE:?Set CRM_IMAGE to a SHA-tagged runtime image}
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      FRONTEND_DIRECTORY: /app/frontend/dist
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      APP_ORIGIN: ${CRM_ORIGIN:?Set the exact HTTPS CRM_ORIGIN}
+      TRUST_PROXY_HOPS: 1
+    networks: [frontend, database]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate:
+    image: ${CRM_MIGRATION_IMAGE:?Set the matching SHA-tagged migration image}
+    profiles: [tools]
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    networks: [database]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks: [database]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+networks:
+  edge:
+  frontend:
+    internal: true
+  database:
+    internal: true
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

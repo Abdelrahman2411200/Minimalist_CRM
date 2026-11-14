@@ -33,6 +33,9 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 
 # A separate one-shot image contains the locked Prisma CLI, schema and migrations.
 FROM base AS migrate
+ARG VCS_REF
+ARG SOURCE_URL
+LABEL org.opencontainers.image.revision=$VCS_REF org.opencontainers.image.source=$SOURCE_URL
 ENV NODE_ENV=production
 COPY --from=migration-dependencies /app/node_modules ./node_modules
 COPY backend/package.json ./backend/package.json
@@ -45,6 +48,9 @@ USER node
 CMD ["node", "../node_modules/prisma/build/index.js", "migrate", "deploy", "--config", "prisma.config.mjs"]
 
 FROM base AS runtime
+ARG VCS_REF
+ARG SOURCE_URL
+LABEL org.opencontainers.image.revision=$VCS_REF org.opencontainers.image.source=$SOURCE_URL
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 FRONTEND_DIRECTORY=/app/frontend/dist
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY backend/package.json ./backend/package.json
