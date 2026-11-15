@@ -27,6 +27,8 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
+      METRICS_HOST: 0.0.0.0
+      METRICS_PORT: 9464
       FRONTEND_DIRECTORY: /app/frontend/dist
       POSTGRES_HOST: postgres
       POSTGRES_DB: ${POSTGRES_DB:-crm}
@@ -35,7 +37,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
       APP_ORIGIN: ${CRM_ORIGIN:?Set the exact HTTPS CRM_ORIGIN}
       TRUST_PROXY_HOPS: 1
-    networks: [frontend, database]
+    networks: [frontend, database, monitoring]
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,14 +74,67 @@ services:
       retries: 12
       start_period: 10s
 
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.16.0}
+    profiles: [monitoring]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --log.format=json
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ${PROMETHEUS_CONFIG_PATH:-./monitoring/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks: [monitoring, monitoring_access]
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:13.3.1}
+    profiles: [monitoring]
+    restart: unless-stopped
+    # Refuse the image's default password even when the profile is started manually.
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - 'case "$$GF_SECURITY_ADMIN_PASSWORD" in ""|replace-*) exit 1;; esac; test "$${#GF_SECURITY_ADMIN_PASSWORD}" -ge 12; exec /run.sh'
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_LOG_MODE: console
+      GF_LOG_CONSOLE_FORMAT: json
+      GF_SERVER_ROUTER_LOGGING: "false"
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks: [monitoring, monitoring_access]
+
 networks:
   edge:
   frontend:
     internal: true
   database:
     internal: true
+  monitoring:
+    internal: true
+  # Docker needs a gateway to publish even loopback ports. This network has no app/proxy/DB members.
+  monitoring_access:
 
 volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  prometheus_data:
+  grafana_data:

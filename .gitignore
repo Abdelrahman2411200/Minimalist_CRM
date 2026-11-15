@@ -13,3 +13,6 @@ frontend/test-results/
 __pycache__/
 deploy/.deployment-state.json*
 deploy/.deployment.lock
+deploy/backups/
+*.dump
+*.dump.json

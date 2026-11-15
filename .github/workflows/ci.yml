@@ -73,8 +73,8 @@ jobs:
       - name: Validate migration image
         run: docker build --target migrate --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --tag "minimalist-crm-migrate:sha-$GITHUB_SHA" .
       - name: Verify deployment validation and schema compatibility rules
-        run: python3 -m unittest discover -s deploy -p test_deploy.py -v
-      - name: Verify production HTTPS, migrations, restart and rollback
+        run: python3 -m unittest discover -s deploy -p 'test_*.py' -v
+      - name: Verify HTTPS, rollback, private monitoring and backup restore
         run: npm run test:production --workspace backend
         env:
           CRM_TEST_IMAGE: minimalist-crm:sha-${{ github.sha }}

@@ -2,6 +2,7 @@ import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import { Pool } from 'pg';
 import type { AuthConfig } from '../../config.js';
+import { logSystem } from '../../telemetry/logging.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -22,14 +23,14 @@ export function cookieOptions(config: AuthConfig) {
 
 export function createSessionStore(connectionString: string) {
   const pool = new Pool({ connectionString, max: 5, connectionTimeoutMillis: 2_000, query_timeout: 2_000 });
-  pool.on('error', () => console.error('Session database connection failed'));
+  pool.on('error', () => logSystem('session_pool_error', 'error'));
   const PgStore = connectPgSimple(session);
   const store = new PgStore({
     pool,
     tableName: 'session',
     createTableIfMissing: false,
     pruneSessionInterval: 900,
-    errorLog: () => console.error('Session storage operation failed'),
+    errorLog: () => logSystem('session_store_error', 'error'),
   });
 
   return {

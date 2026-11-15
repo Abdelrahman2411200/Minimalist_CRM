@@ -86,7 +86,7 @@ docker compose restart postgres app
 docker compose down
 ```
 
-Do not add `--volumes` to the normal teardown command: that option removes database data. A named volume persists between restarts but is not a backup. Verified backups and recovery are scheduled for Phase 8.
+Do not add `--volumes` to the normal teardown command: that option removes database data. A named volume persists between restarts but is not a backup. The production reference includes a [tested backup/restore procedure](backup-restore.md), [private monitoring](operations.md), and a [release runbook](release-runbook.md).
 
 `npm run test:compose --workspace backend` builds both targets and verifies the documented lifecycle with generated credentials and synthetic records in its own randomly named Compose project and new volume.
 

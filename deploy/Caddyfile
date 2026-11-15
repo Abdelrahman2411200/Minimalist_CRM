@@ -1,6 +1,15 @@
 {
 	email {$ACME_EMAIL}
 	admin off
+	log {
+		format filter {
+			wrap json
+			fields {
+				request delete
+				err_trace delete
+			}
+		}
+	}
 }
 
 {$CRM_HOST} {
@@ -13,5 +22,11 @@
 	}
 	# Caddy overwrites forwarded headers from untrusted clients. No access logging
 	# here: URLs may contain contact searches; API/session material stays private.
-	reverse_proxy app:3000
+	@operations path /metrics /metrics/* /api/metrics /api/metrics/* /grafana /grafana/* /prometheus /prometheus/* /monitoring /monitoring/* /api/v1/query /api/v1/query_range /-/healthy /-/ready /debug/*
+	handle @operations {
+		respond "Not found" 404
+	}
+	handle {
+		reverse_proxy app:3000
+	}
 }

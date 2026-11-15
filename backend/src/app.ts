@@ -10,17 +10,20 @@ import { sessionMiddleware } from './modules/auth/session.js';
 import { contactsRouter } from './modules/contacts/router.js';
 import { leadsRouter } from './modules/leads/router.js';
 import { opportunitiesRouter } from './modules/opportunities/router.js';
+import { createTelemetry } from './telemetry/http.js';
 
 type AppDependencies = {
   checkDatabase?: () => Promise<void>;
   frontendDirectory?: string;
+  telemetry?: ReturnType<typeof createTelemetry>;
   api?: { database: PrismaClient; config: AuthConfig; store: session.Store };
 };
 
 // Importing the app never starts a listener or loads local environment files.
-export function createApp({ checkDatabase, api, frontendDirectory }: AppDependencies = {}) {
+export function createApp({ checkDatabase, api, frontendDirectory, telemetry = createTelemetry() }: AppDependencies = {}) {
   const app = express();
   app.disable('x-powered-by');
+  app.use(telemetry.middleware);
 
   app.get('/health', (_request, response) => {
     response.status(200).json({ status: 'ok' });

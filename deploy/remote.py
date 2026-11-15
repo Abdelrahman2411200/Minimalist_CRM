@@ -61,8 +61,9 @@ def main():
         ssh(["mkdir", "-p", "--", path])
         ssh(["chmod", "700", "--", path])
         source = Path(__file__).resolve().parent
-        files = [str(source / name) for name in ("compose.yaml", "Caddyfile", ".env.example", "deploy.py", "smoke.py", "setup.py")]
+        files = [str(source / name) for name in ("compose.yaml", "Caddyfile", ".env.example", "deploy.py", "smoke.py", "setup.py", "backup.py")]
         subprocess.run(["scp", *options, "-P", port, *files, destination + ":" + path + "/"], check=True, timeout=60)
+        subprocess.run(["scp", *options, "-P", port, "-r", str(source / "monitoring"), destination + ":" + path + "/"], check=True, timeout=60)
         if token:
             ssh(["docker", "login", registry, "--username", registry_user, "--password-stdin"], token)
         ssh(["python3", path + "/deploy.py", "deploy", "--env-file", path + "/.env", "--image", image,

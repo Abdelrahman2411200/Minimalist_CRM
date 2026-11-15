@@ -127,7 +127,7 @@ class Deployment:
                 raise RuntimeError("Only the HTTPS reverse proxy may publish host ports.")
             if "edge" in self.services[name].get("networks", {}):
                 raise RuntimeError("Application/database services must remain on private networks.")
-        if not all(self.config["networks"][name].get("internal") for name in ("frontend", "database")):
+        if not all(self.config["networks"][name].get("internal") for name in ("frontend", "database", "monitoring")):
             raise RuntimeError("Frontend and database networks must be internal.")
         for key in ("CRM_IMAGE", "CRM_MIGRATION_IMAGE"):
             value = self.environment.get(key) or self.services["app" if key == "CRM_IMAGE" else "migrate"]["image"]
@@ -163,9 +163,9 @@ class Deployment:
         return json.loads(self.run(["docker", "run", "--rm", "--network", "none", "--entrypoint", "node",
                                    self.pair()["migration_image"], "--input-type=module", "-e", code]))
 
-    def history(self):
+    def history(self, database_name=None):
         pg = self.services["postgres"]["environment"]
-        command = ["exec", "-T", "postgres", "psql", "-U", pg["POSTGRES_USER"], "-d", pg["POSTGRES_DB"], "-Atc"]
+        command = ["exec", "-T", "postgres", "psql", "-U", pg["POSTGRES_USER"], "-d", database_name or pg["POSTGRES_DB"], "-Atc"]
         exists = self.compose(*command, "SELECT to_regclass('public._prisma_migrations') IS NOT NULL").strip()
         if exists != "t":
             return []
@@ -210,6 +210,22 @@ def execute(args):
     if args.command == "status":
         rows = deployment.history()
         print(json.dumps({"origin": deployment.origin, "schema_fingerprint": fingerprint(rows), "state": state}, indent=2))
+        return
+    if args.command == "monitoring":
+        config = json.loads(deployment.compose("--profile", "monitoring", "config", "--format", "json"))
+        password = config["services"]["grafana"]["environment"]["GF_SECURITY_ADMIN_PASSWORD"]
+        if len(password) < 12 or password.startswith("replace-"):
+            raise RuntimeError("Configure a private Grafana password first: python3 setup.py --monitoring")
+        for name in ("prometheus", "grafana"):
+            service = config["services"][name]
+            if set(service.get("networks", {})) != {"monitoring", "monitoring_access"} or any(port.get("host_ip") not in ("127.0.0.1", "::1") for port in service.get("ports", [])):
+                raise RuntimeError("Monitoring services must use the private network and loopback-only host bindings.")
+        if any("monitoring_access" in config["services"][name].get("networks", {}) for name in ("proxy", "app", "postgres", "migrate")):
+            raise RuntimeError("The monitoring access network cannot contain public proxy, API or database services.")
+        with deployment_lock(env_file.parent / ".deployment.lock"):
+            deployment.compose("--profile", "monitoring", "pull", "prometheus", "grafana", timeout=900)
+            deployment.compose("--profile", "monitoring", "up", "-d", "--no-deps", "prometheus", "grafana")
+        print("Monitoring started on loopback-only ports; use an SSH tunnel and the private server Grafana credentials.")
         return
     with deployment_lock(env_file.parent / ".deployment.lock"):
         # Reload after acquiring the lock so concurrent commands never use stale release state.
@@ -272,7 +288,7 @@ def execute(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("deploy", "rollback", "status"))
+    parser.add_argument("command", choices=("deploy", "rollback", "status", "monitoring"))
     parser.add_argument("--env-file", default=str(ROOT / ".env"))
     parser.add_argument("--image")
     parser.add_argument("--migration-image")

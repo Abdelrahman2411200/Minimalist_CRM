@@ -2,7 +2,9 @@
 
 A lightweight CRM for tracking contacts, qualifying leads, and managing sales opportunities. Staff can follow a customer from the first inquiry to a closed sale in a single dashboard.
 
-**Current checkpoint: Phase 7.** Successful CI publishes the fictional Pages demo and the tested full CRM/migration images to GHCR with commit-SHA tags. The [VPS reference](docs/vps-deployment.md) provides private networks, Caddy HTTPS, migration-before-switch deployment, schema-reviewed rollback, and an opt-in SSH deployment job. A real full-app host must be configured before its hosted checks can run. Both targets use the same React screens and hash navigation.
+**Current checkpoint: Phase 8.** The full app includes private Prometheus/Grafana monitoring, structured request logs, and a PostgreSQL backup/restore procedure tested with synthetic records. CI tests the container deployment and recovery workflow before publishing the full CRM/migration images and fictional demo. See the [release runbook](docs/release-runbook.md), [monitoring guide](docs/operations.md), and [backup guide](docs/backup-restore.md).
+
+**Live fictional demo:** [abdelrahman2411200.github.io/Minimalist_CRM](https://abdelrahman2411200.github.io/Minimalist_CRM/). **Full CRM:** no hosted URL is configured yet; use the local app or configure `https://<crm-domain>/` with the [VPS reference](docs/vps-deployment.md). Set the Pages repository variable `FULL_CRM_URL` after verifying that host to show its external link in the demo. Both targets use the same screens and hash navigation.
 
 ## Architecture
 
@@ -13,7 +15,7 @@ A lightweight CRM for tracking contacts, qualifying leads, and managing sales op
 | Database | PostgreSQL, Prisma | Records, staff accounts, sessions, and versioned migrations |
 | Delivery | Docker Compose, GitHub Actions, GitHub Pages | Local full app, automated checks, and fictional portfolio demo |
 | Full CRM hosting | GitHub Container Registry, Caddy, Docker Compose, and an HTTPS VPS | Tested image releases and configurable deployment reference |
-| Planned monitoring | Prometheus and Grafana | Traffic, 5xx error rate, and p95 latency in Phase 8 |
+| Monitoring | Prometheus and provisioned Grafana | Private API request rate, 5xx percentage, and p95 latency |
 
 ## Runtime and installation
 
@@ -67,6 +69,7 @@ cp frontend/.env.example frontend/.env
 | `NODE_ENV` | `backend/.env` | `development` | `development`, `test`, or `production` |
 | `HOST` | `backend/.env` | `127.0.0.1` | Local listener address |
 | `PORT` | `backend/.env` | `3000` | Integer port from 1 to 65535 |
+| `METRICS_HOST`, `METRICS_PORT` | Server environment | `127.0.0.1`, `9464` | Separate private metrics listener; never publish this port |
 | `DATABASE_URL` | `backend/.env` | Required | PostgreSQL URL matching the root Compose settings |
 | `TEST_DATABASE_URL` | `backend/.env` | Example points to port `5433` | Test server with permission to create disposable databases |
 | `SESSION_SECRET` | `backend/.env` or server environment | Required for API startup | Random server-side secret of at least 32 characters |
@@ -362,7 +365,7 @@ The preview server is for static inspection. The Docker runtime serves the full 
 
 ## Continuous integration
 
-[CI](.github/workflows/ci.yml) runs verification on pull requests and pushes to `main` with read-only repository permissions. It selects the Node version in `.nvmrc`, uses `npm ci` with the single root lockfile, runs lint and type checking, builds the API and both frontend variants, applies migrations to a disposable PostgreSQL 18 service, runs database/API integration and demo adapter tests, and builds both Docker image targets. It also runs deployment unit checks and the isolated production HTTPS/migration/restart/rollback verifier. Test databases and deployment stacks are disposable.
+[CI](.github/workflows/ci.yml) runs verification on pull requests and pushes to `main` with read-only repository permissions. It selects the Node version in `.nvmrc`, uses `npm ci` with the single root lockfile, runs lint and type checking, builds the API and both frontend variants, applies migrations to a disposable PostgreSQL 18 service, runs database/API integration and demo adapter tests, and builds both Docker image targets. It also runs deployment/backup unit checks and the isolated HTTPS/migration/restart/rollback verifier, including private Grafana panel queries, log privacy, proxy denials and synthetic backup recovery. Test databases and deployment stacks are disposable.
 
 On successful `main` pushes, CI archives the exact tested image pair. A separate `packages: write` job loads and checks those image IDs, publishes runtime/migration `sha-<full-commit>` tags to GHCR without rebuilding, and pulls them back to verify registry identity. See [image release and server setup](docs/vps-deployment.md). Real VPS deployment is an opt-in protected-environment workflow; production database/session secrets stay on the server.
 
@@ -374,7 +377,7 @@ After verification succeeds on a push to `main`, `pages-build` makes a fresh dem
 npm run test:pages --workspace frontend
 ```
 
-See the [Phase 5 verification report](docs/phase-5-verification.md) for the commands actually run, changed paths, local results, and remaining hosted verification.
+See the [Phase 8 verification report](docs/phase-8-verification.md) for changed paths, commands actually run, local results, and remaining hosted verification.
 
 ## Repository layout
 
@@ -396,9 +399,11 @@ See the [Phase 5 verification report](docs/phase-5-verification.md) for the comm
 | `Dockerfile`, `.dockerignore`, `docker/` | Multi-stage runtime/migration images, build exclusions, and container migration configuration |
 | `.github/workflows/ci.yml` | Pull-request/main verification and CI-gated Pages build/deploy jobs |
 | `.github/workflows/deploy-vps.yml` | Opt-in protected staging/production SSH deployment and HTTPS verification |
-| `deploy/` | Production Compose, Caddy HTTPS, private configuration setup, deployment/rollback controller, smoke checks, and unit tests |
-| `backend/scripts/verify-production.ts` | Isolated trusted HTTPS deployment, failure recovery, restart, and schema-compatible rollback verification |
+| `deploy/` | Production Compose, Caddy HTTPS, private setup, deployment/rollback controller, backup helper, and monitoring provisioning |
+| `backend/src/telemetry/` | API metrics with bounded route templates and structured allowlist logging |
+| `backend/scripts/verify-production.ts`, `backend/scripts/verify-operations.ts` | Isolated HTTPS deployment/rollback, private Grafana data and backup-restore verification |
 | `docs/vps-deployment.md` | Registry access, VPS prerequisites, secrets, deployment, rollback, and pending hosted checks |
+| `docs/operations.md`, `docs/backup-restore.md`, `docs/release-runbook.md` | Private monitoring, backup recovery, release acceptance and image rollback |
 | `docs/github-pages.md` | Pages settings, public link configuration, artifact isolation, and hosted/local verification |
 | `backend/tests/frontend.test.ts` | Same-origin static serving, asset caching, and JSON 404 checks |
 | `docs/containers.md` | Container startup, account provisioning, readiness, and data retention |
@@ -412,12 +417,14 @@ See the [Phase 5 verification report](docs/phase-5-verification.md) for the comm
 | `eslint.config.mjs` | Shared TypeScript and React lint rules |
 | `package.json`, `package-lock.json` | Workspace commands and reproducible dependencies |
 
-## Planned CRM behavior
+## Short walkthrough
 
-1. Add a contact, such as fictional Sara Ahmed, with work email, company, source, and optional notes.
-2. Create a linked lead, manually score it 7 out of 10, and move it from Prospecting to Qualification.
-3. Add a sales opportunity with an estimated EGP value and expected close date.
-4. Follow the lead through Proposal, Negotiation, Closed Won, or Closed Lost.
+1. Open the demo directly, or sign in to the full app with a provisioned staff account. In **Contacts**, create fictional Sara Ahmed with `sara@example.test`, company `Synthetic Studio`, source `Website`, and optional notes.
+2. Open her contact details, create a linked lead with manual score **7**, then edit it from **Prospecting** to **Qualification**.
+3. Create a linked opportunity named `Synthetic rollout`, estimated value **25000.00 EGP**, and expected close date **2028-02-29**. Edit a field and confirm the contact's sales history shows the lead and opportunity.
+4. Search for Sara by name/company/email and combine source **Website** with stage **Qualification**. Move the lead through **Proposal** and **Negotiation** to **Closed Won**, then update the stage filter to find the closed lead. Stage belongs to the entire lead.
+
+Demo changes reset on reload. Full-mode records and sessions are stored in PostgreSQL and survive ordinary container restarts.
 
 Staff can search contacts by name, company, or email and combine lead source and lead stage filters. Contact details show the linked lead and its opportunities. A contact may have zero or one lead, and a lead may have multiple opportunities. Stage applies to the lead as a whole. API money uses non-negative decimal strings and date-only fields use `YYYY-MM-DD`.
 
@@ -436,8 +443,8 @@ The implemented routes are `POST /api/auth/login`, `POST /api/auth/logout`, `GET
 | 5 | Same-origin container, Docker Compose, GitHub Actions CI | Implemented |
 | 6 | Standalone synthetic GitHub Pages demo | Implemented |
 | 7 | GHCR images, HTTPS VPS deployment, migrations and rollback | Implemented reference; hosted VPS verification requires configuration |
-| 8 | Private Prometheus/Grafana, logs, verified backups and recovery | Planned |
+| 8 | Private Prometheus/Grafana, logs, verified backups and recovery | Implemented reference; hosted operational checks require a configured VPS |
 
-The full CRM will run at `https://<crm-domain>/` with sign-in and persistent records. The portfolio at `https://<owner>.github.io/<repo>/` will use fictional records in browser memory, reset changes on reload, display a demo label, and work without an API or credentials. Both will use the same screens with build-selected adapters and hash routes. A configured URL will optionally link the demo to the full CRM.
+The full CRM deployment uses `https://<crm-domain>/` with sign-in and persistent records. The [published portfolio](https://abdelrahman2411200.github.io/Minimalist_CRM/) uses fictional browser-memory records, resets on reload, displays a demo label, and works without API requests or credentials.
 
-Local checks include both frontend targets, fresh migrations, production HTTPS/session behavior, restart persistence, and a previous-image rollback retaining a compatible newer schema. The Pages demo is hosted; a full CRM VPS is verified only after its host/DNS/credentials are configured. Operations will include private request-rate, 5xx-error, and p95-latency metrics, request IDs without sensitive record data in logs, and backup restores verified against a disposable database.
+`npm run test:production --workspace backend` builds the image pair and checks trusted local HTTPS, sessions, restart persistence, schema-compatible image rollback, private monitoring with numeric data in all three Grafana panels, and a synthetic PostgreSQL restore with exact money/date and restored constraints. Run it with Docker available. See the operational guides for server commands and pending hosted checks: public DNS/ACME, firewall and SSH isolation, live monitoring, off-host backup retention and a recovery drill on the actual host remain to be verified.

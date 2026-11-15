@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: CRM API
+    orgId: 1
+    folder: CRM Operations
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

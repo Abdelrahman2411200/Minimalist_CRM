@@ -30,6 +30,8 @@ The [production Compose file](../deploy/compose.yaml) deliberately differs from 
 | `edge` | Caddy only | Public network for ports 80/443 and certificate issuance |
 | `frontend` | Caddy and app | Internal/private network; proxy reaches app port 3000 |
 | `database` | App, migration tool, PostgreSQL | Internal/private network; no published database port |
+| `monitoring` | App, optional Prometheus and Grafana | Internal/private metrics; monitoring UI ports bind only to host loopback |
+| `monitoring_access` | Optional Prometheus and Grafana only | Separate bridge gateway needed for Docker's loopback UI publishing; no API/proxy/database members |
 
 The API always uses `NODE_ENV=production`, `TRUST_PROXY_HOPS=1`, the exact HTTPS `CRM_ORIGIN`, and Secure/HTTP-only/SameSite session cookies. Caddy supplies trusted forwarded headers; the app is reachable only through private networks. Caddy's administration API is disabled and access logs are not enabled, so contact searches and session material are not collected in proxy URL logs. PostgreSQL uses a named volume; Caddy certificate/config storage also uses named volumes.
 
@@ -122,7 +124,7 @@ Keep the Compose project name and named volumes. Normal `docker compose down` re
 
 ## Roll back only with schema compatibility
 
-An app rollback does **not** reverse a SQL migration or restore database contents. Before redeploying an older image, review every intervening migration against that version's Prisma model, SQL queries, validation, and writes. Keep old columns, enum values, defaults, and required relationships compatible throughout the rollback window. Prefer additive/expand-then-contract migrations. Do not roll back across incompatible drops, renames, type changes, or constraints; use a forward fix or a separately planned restore from a verified backup. Backup/restore automation is Phase 8 work.
+An app rollback does **not** reverse a SQL migration or restore database contents. Before redeploying an older image, review every intervening migration against that version's Prisma model, SQL queries, validation, and writes. Keep old columns, enum values, defaults, and required relationships compatible throughout the rollback window. Prefer additive/expand-then-contract migrations. Do not roll back across incompatible drops, renames, type changes, or constraints; use a forward fix or a separately planned restore from a verified backup. Use the [backup/restore guide](backup-restore.md) before releases and the [release runbook](release-runbook.md) for acceptance and recovery.
 
 `python3 deploy.py status` prints the recorded current/previous images, any pending failed deployment, and the **actual current database** schema fingerprint without exposing credentials.
 
@@ -171,10 +173,10 @@ In **Actions > Deploy VPS > Run workflow**, select `main`, the protected environ
 
 ## Local validation and pending hosted checks
 
-`python -m unittest discover -s deploy -p test_deploy.py -v` checks pinned image references, origins, SQL-history compatibility, schema acknowledgement binding, exclusive deployment locks, and safe first-time/server configuration updates using temporary files.
+`python -m unittest discover -s deploy -p 'test_*.py' -v` checks image/origin validation, SQL-history compatibility, exclusive deployment locks, secret preservation, restore target restrictions and archive integrity using temporary synthetic files.
 
 ```sh
-python -m unittest discover -s deploy -p test_deploy.py -v
+python -m unittest discover -s deploy -p 'test_*.py' -v
 ```
 
 `npm run test:production --workspace backend` builds the image pair when not supplied by CI, then invokes the real deployment controller with isolated volumes and an explicitly trusted local Caddy CA.
@@ -183,7 +185,7 @@ python -m unittest discover -s deploy -p test_deploy.py -v
 npm run test:production --workspace backend
 ```
 
-The verifier checks private networks/no app or database host ports, trusted HTTPS, cookie flags and forwarded headers, authorized sign-in, synthetic create/readback, migration reapplication, app/database/proxy restart persistence, an additive schema upgrade, previous-image rollback retaining the newer schema, rejection of missing/stale compatibility acknowledgements, a failed migration before app switching, and failed-startup recovery. Derived synthetic candidate images/migrations are used only in that test stack and are not published. It removes only its own randomly named stack and volumes. Python defaults to `python` on Windows and `python3` elsewhere; override with the task-specific `CRM_DEPLOY_PYTHON` if needed.
+The verifier checks private networks/no app or database host ports, trusted HTTPS, cookie flags and forwarded headers, authorized sign-in, synthetic create/readback, migration reapplication, restart persistence, schema-compatible image rollback, migration/startup failures, private Grafana panel data and public operational-path denial, log privacy, and a real synthetic PostgreSQL backup/restore. Derived synthetic candidate images/migrations are used only in that test stack and are not published. It removes only its own randomly named stack and volumes, including the optional monitoring profile. Python defaults to `python` on Windows and `python3` elsewhere; override with the task-specific `CRM_DEPLOY_PYTHON` if needed. See [monitoring](operations.md), [backup/restore](backup-restore.md), and the [release runbook](release-runbook.md).
 
 When no VPS is configured, the remaining hosted prerequisites/checks are exactly:
 

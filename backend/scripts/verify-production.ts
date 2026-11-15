@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { verifyMonitoring, verifyBackup } from './verify-operations.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const deployDirectory = join(root, 'deploy');
@@ -52,12 +53,19 @@ const caFile = join(directory, 'root.crt');
 const caddyFile = join(directory, 'Caddyfile');
 const username = 'production-test-staff';
 const password = randomBytes(24).toString('base64url');
+const grafanaPassword = randomBytes(24).toString('hex');
+const prometheusPort = await port();
+const grafanaPort = await port();
+const prometheusConfig = join(directory, 'prometheus.yml');
+await writeFile(prometheusConfig, (await readFile(join(deployDirectory, 'monitoring/prometheus.yml'), 'utf8')).replaceAll('15s', '2s'));
 const settings = {
   COMPOSE_PROJECT_NAME: project, CRM_HOST: 'localhost', CRM_ORIGIN: origin, ACME_EMAIL: 'synthetic@example.test',
   CRM_IMAGE: image, CRM_MIGRATION_IMAGE: migrationImage, CADDYFILE_PATH: caddyFile.replaceAll('\\', '/'),
   POSTGRES_DB: 'crm_production_test', POSTGRES_USER: 'crm_production_test',
   POSTGRES_PASSWORD: `${randomBytes(24).toString('hex')}@:/?#%$`, SESSION_SECRET: randomBytes(48).toString('hex'),
   PROXY_BIND: '127.0.0.1', HTTP_PORT: String(httpPort), HTTPS_PORT: String(httpsPort),
+  PROMETHEUS_PORT: String(prometheusPort), GRAFANA_PORT: String(grafanaPort), GRAFANA_ADMIN_PASSWORD: grafanaPassword,
+  PROMETHEUS_CONFIG_PATH: prometheusConfig.replaceAll('\\', '/'),
 };
 await writeFile(environmentFile, Object.entries(settings).map(([key, value]) => `${key}='${value}'`).join('\n') + '\n', { mode: 0o600 });
 const referenceCaddyfile = await readFile(join(deployDirectory, 'Caddyfile'), 'utf8');
@@ -77,7 +85,7 @@ async function request(path: string, method = 'GET', body?: unknown, headers: Re
       response.setEncoding('utf8');
       response.on('data', (chunk: string) => { data += chunk; });
       response.on('end', () => {
-        try { done({ status: response.statusCode!, headers: response.headers, body: data ? JSON.parse(data) as Record<string, unknown> : {} }); }
+        try { done({ status: response.statusCode!, headers: response.headers, body: !data ? {} : response.headers['content-type']?.includes('application/json') ? JSON.parse(data) as Record<string, unknown> : { raw: data } }); }
         catch { reject(new Error('Expected an API JSON response')); }
       });
     });
@@ -144,6 +152,9 @@ try {
     assert.equal((await request(`/api/contacts/${verified.synthetic_contact_id}`)).status, 200, 'Synthetic contact survives');
   };
   await persisted();
+  const operations = { compose, docker, request, ready, controller, execute, python, deployDirectory, environmentFile, directory, project,
+    prometheusPort, grafanaPort, grafanaPassword, contactId: verified.synthetic_contact_id, password, cookie };
+  await verifyMonitoring(operations);
   for (const service of ['app', 'postgres']) {
     const id = (await compose(['ps', '-q', service])).output.trim();
     const info = JSON.parse((await docker(['inspect', id])).output)[0] as { NetworkSettings: { Ports: Record<string, unknown>; Networks: Record<string, unknown> } };
@@ -208,9 +219,10 @@ try {
   await persisted();
   assert.equal((await state()).current.revision, revision);
   console.info('Failed migrations preserve the running app; failed startup remains recorded; reviewed same-schema rollback restores HTTPS/data/session without down migrations.');
+  await verifyBackup(operations);
   console.info('Production lifecycle verification passed.');
 } finally {
-  try { await compose(['down', '--volumes', '--remove-orphans']); }
+  try { await compose(['--profile', 'monitoring', 'down', '--volumes', '--remove-orphans']); }
   finally {
     assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
     await rm(directory, { recursive: true, force: true });

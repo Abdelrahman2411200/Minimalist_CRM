@@ -9,8 +9,10 @@ export class ApiError extends Error {
 }
 
 export const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, next) => {
+  void next; // Keep Express's four-argument error-handler signature; this is terminal.
   if (response.headersSent) {
-    next(new Error('API response failed'));
+    response.locals.requestFailed = true;
+    response.destroy();
     return;
   }
   if (error instanceof ZodError) {
@@ -51,6 +53,6 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _request, resp
     }
   }
   // Exception objects may contain query parameters, request bodies, or session material.
-  console.error('API request failed');
+  // Completion middleware logs the 500 and request ID without exception contents.
   response.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'The request could not be completed' } });
 };
