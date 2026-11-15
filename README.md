@@ -6,6 +6,8 @@ A lightweight CRM for tracking contacts, qualifying leads, and managing sales op
 
 **Live fictional demo:** [abdelrahman2411200.github.io/Minimalist_CRM](https://abdelrahman2411200.github.io/Minimalist_CRM/). **Full CRM:** no hosted URL is configured yet; use the local app or configure `https://<crm-domain>/` with the [VPS reference](docs/vps-deployment.md). Set the Pages repository variable `FULL_CRM_URL` after verifying that host to show its external link in the demo. Both targets use the same screens and hash navigation.
 
+The refreshed interface includes a public introduction at `#/welcome` (also the full app's root), sign-in, a live `#/overview`, global contact search, and responsive contact, lead and opportunity screens. Leads support a table/board toggle and stage filtering. The demo still opens Contacts directly. See the [design/security review and tracked findings](docs/design-security-review.md).
+
 ## Architecture
 
 | Layer | Technology | Role |
@@ -336,6 +338,14 @@ npm run test:e2e --workspace frontend
 ```
 
 Browser checks cover sign-in, create/edit flows, combined filters, linked sales history, validation, empty and failed requests, loading, session expiry, and sign-out. The demo is tested under `/portfolio/` with zero API requests, fixture deep-link reloads, reset-on-reload, and a mobile viewport. Full-mode checks use a disposable database and verify persisted money/date values after a deep-link reload. Screenshots are saved under ignored `frontend/test-results/` for layout inspection. Test credentials are generated in memory, and the test database is dropped during cleanup.
+
+`npm run test:selenium --workspace frontend` runs Chrome/Selenium desktop and mobile workflows for both builds against an isolated PostgreSQL database and writes `frontend/test-results/selenium/report.md` with exact failing scenarios and sanitized errors; start the test PostgreSQL service first.
+
+```sh
+npm run test:selenium --workspace frontend
+```
+
+Selenium Manager downloads a compatible browser driver on its first run. The 15 scenarios include the new landing page, password visibility, overview, global search, lead board/filter controls, all create/edit/cancel flows, validation, retry/loading, session expiry/logout, mobile navigation and demo reset. CI retains the Markdown report and synthetic screenshots in `selenium-verification`, even when a test fails. The versioned [security review](docs/design-security-review.md) records fixed findings, remaining deployment risks, tested authorization boundaries and verification limits. No test suite can guarantee that attacks or bugs are impossible.
 
 `npm run start --workspace backend` runs the compiled API after a successful build, using `backend/.env`. Docker additionally sets `FRONTEND_DIRECTORY` to serve the packaged full dashboard.
 

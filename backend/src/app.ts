@@ -1,4 +1,5 @@
 import express from 'express';
+import helmet from 'helmet';
 import type session from 'express-session';
 import type { AuthConfig } from './config.js';
 import type { PrismaClient } from './generated/prisma/client.js';
@@ -24,6 +25,22 @@ export function createApp({ checkDatabase, api, frontendDirectory, telemetry = c
   const app = express();
   app.disable('x-powered-by');
   app.use(telemetry.middleware);
+  const production = api?.config.NODE_ENV === 'production';
+  app.use(helmet({
+    contentSecurityPolicy: { directives: {
+      defaultSrc: ["'self'"], baseUri: ["'none'"], scriptSrc: ["'self'"], scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'"], fontSrc: ["'self'"], imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"], objectSrc: ["'none'"], frameAncestors: ["'none'"], formAction: ["'self'"],
+      upgradeInsecureRequests: production ? [] : null,
+    } },
+    strictTransportSecurity: production ? { maxAge: 31_536_000 } : false,
+    xFrameOptions: { action: 'deny' },
+    referrerPolicy: { policy: 'same-origin' },
+  }));
+  app.use((_request, response, next) => {
+    response.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    next();
+  });
 
   app.get('/health', (_request, response) => {
     response.status(200).json({ status: 'ok' });

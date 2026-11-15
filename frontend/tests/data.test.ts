@@ -4,11 +4,17 @@ import test from 'node:test';
 import { createDemoData } from '../src/data/demo';
 import { CrmError } from '../src/data/errors';
 import type { ContactInput, LeadInput, OpportunityInput } from '../src/data/types';
-import { formatDate, formatMoney } from '../src/format';
+import { formatDate, formatMoney, sumMoney } from '../src/format';
 
 const contactInput: ContactInput = {
   firstName: 'Sara', lastName: 'Example', email: 'sara@example.test', company: 'Synthetic Sample Company', leadSource: 'Website Form',
 };
+
+test('overview totals preserve decimal cents beyond Number precision', () => {
+  assert.equal(sumMoney(['0.10', '0.20']), '0.30');
+  assert.equal(sumMoney(['999999999999.99', '999999999999.99']), '1999999999999.98');
+  assert.equal(sumMoney([]), '0.00');
+});
 
 async function rejects(promise: Promise<unknown>, status: number) {
   await assert.rejects(promise, (error: unknown) => error instanceof CrmError && error.status === status);

@@ -6,7 +6,7 @@ import type { Stage } from '../data/types';
 export function PageHeader({ title, children, back }: { title: string; children?: ReactNode; back?: { to: string; label: string } }) {
   return <>
     {back && <Link className="back-link" to={back.to}>← {back.label}</Link>}
-    <div className="page-header"><h1>{title}</h1><div className="actions">{children}</div></div>
+    <div className="page-header"><div><p className="eyebrow">{back ? 'THE DETAILS MAKE THE DIFFERENCE' : 'A WORKSPACE FOR WHAT COMES NEXT'}</p><h1>{title}</h1></div><div className="actions">{children}</div></div>
   </>;
 }
 

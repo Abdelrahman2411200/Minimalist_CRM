@@ -50,7 +50,7 @@ export function ContactsPage() {
       </Empty> : <div className="table-wrap panel"><table><caption className="sr-only">Contacts</caption>
         <thead><tr><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Email</th><th scope="col">Source</th><th scope="col">Lead stage</th></tr></thead>
         <tbody>{list.data.map((contact) => <tr key={contact.id}>
-          <td><Link className="record-link" to={`/contacts/${contact.id}`}>{contact.firstName} {contact.lastName}</Link></td>
+          <td><span className="contact-cell"><span className="contact-avatar" aria-hidden="true">{contact.firstName.slice(0, 1)}{contact.lastName.slice(0, 1)}</span><Link className="record-link" to={`/contacts/${contact.id}`}>{contact.firstName} {contact.lastName}</Link></span></td>
           <td>{contact.company}</td><td>{contact.email}</td><td>{contact.leadSource}</td><td><StageBadge stage={contact.lead?.stage} /></td>
         </tr>)}</tbody>
       </table></div>}

@@ -68,6 +68,18 @@ jobs:
         run: npm test --workspace backend
       - name: Demo adapter tests
         run: npm test --workspace frontend
+      - name: Selenium desktop/mobile workflows and automatic issue report
+        run: npm run test:selenium --workspace frontend
+      - name: Retain Selenium report and synthetic screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: selenium-verification
+          path: |
+            frontend/test-results/selenium/report.md
+            frontend/test-results/selenium/screenshots/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Validate runtime image
         run: docker build --target runtime --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --tag "minimalist-crm:sha-$GITHUB_SHA" .
       - name: Validate migration image

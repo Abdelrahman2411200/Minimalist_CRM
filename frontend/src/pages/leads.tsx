@@ -11,14 +11,24 @@ import { OpportunitiesTable } from './opportunities';
 
 export function LeadsPage() {
   const query = useQuery({ queryKey: ['leads', 'all'], queryFn: ({ signal }) => crm.listLeads({}, signal) });
+  const [parameters, setParameters] = useSearchParams();
+  const board = parameters.get('view') === 'board';
+  const stage = parameters.get('stage') ?? '';
+  const filtered = query.data?.filter((lead) => !stage || lead.stage === stage);
+  function filter(name: string, value: string) {
+    const next = new URLSearchParams(parameters);
+    if (value) next.set(name, value); else next.delete(name);
+    setParameters(next);
+  }
   return <>
     <PageHeader title="Leads"><Link className="button" to="/leads/new">Qualify lead</Link></PageHeader>
+    <div className="list-toolbar"><p className="muted">Give every conversation a clear next step.</p><div className="view-switch" role="group" aria-label="Lead view"><button type="button" aria-pressed={!board} onClick={() => filter('view', '')}>Table view</button><button type="button" aria-pressed={board} onClick={() => filter('view', 'board')}>Board view</button></div><select aria-label="Filter leads by stage" value={stage} onChange={(event) => filter('stage', event.target.value)}><option value="">All stages</option>{stageSchema.options.map((option) => <option key={option}>{option}</option>)}</select></div>
     {query.isError && <Failure error={query.error} retry={() => { void query.refetch(); }} />}
-    {!query.data ? !query.isError && <Loading /> : query.data.length === 0 ? <Empty title="No leads yet"><p>Qualify a contact with a manual score to start tracking a lead.</p><Link className="button secondary" to="/leads/new">Qualify lead</Link></Empty> : <>
-      <p className="result-count">{query.data.length} leads</p><div className="panel table-wrap"><table><caption className="sr-only">Leads</caption>
+    {!filtered ? !query.isError && <Loading /> : filtered.length === 0 ? <Empty title={stage ? 'No leads in this stage' : 'No leads yet'}><p>{stage ? 'Choose another stage to see more leads.' : 'Qualify a contact with a manual score to start tracking a lead.'}</p>{stage ? <button className="button secondary" type="button" onClick={() => filter('stage', '')}>Show all stages</button> : <Link className="button secondary" to="/leads/new">Qualify lead</Link>}</Empty> : <>
+      <p className="result-count" role="status">{filtered.length} leads</p>{board ? <div className="lead-board" aria-label="Lead pipeline board">{stageSchema.options.filter((option) => !stage || option === stage).map((option) => <section className="board-column" key={option} aria-label={`${option} column`}><h2><StageBadge stage={option} /><span>{filtered.filter((lead) => lead.stage === option).length}</span></h2>{filtered.filter((lead) => lead.stage === option).map((lead) => <article className="board-card" key={lead.id}><Link className="record-link" to={`/leads/${lead.id}`}>{lead.contact.firstName} {lead.contact.lastName}</Link><p>{lead.contact.company}</p><div><span>Score {lead.leadScore} / 10</span><Link className="text-link" to={`/leads/${lead.id}/edit`}>Edit lead</Link></div></article>)}</section>)}</div> : <div className="panel table-wrap"><table><caption className="sr-only">Leads</caption>
         <thead><tr><th scope="col">Contact</th><th scope="col">Company</th><th scope="col">Manual score</th><th scope="col">Stage</th><th scope="col">Opportunities</th></tr></thead>
-        <tbody>{query.data.map((lead) => <tr key={lead.id}><td><Link className="record-link" to={`/leads/${lead.id}`}>{lead.contact.firstName} {lead.contact.lastName}</Link></td><td>{lead.contact.company}</td><td>{lead.leadScore} / 10</td><td><StageBadge stage={lead.stage} /></td><td>{lead.opportunities.length}</td></tr>)}</tbody>
-      </table></div>
+        <tbody>{filtered.map((lead) => <tr key={lead.id}><td><Link className="record-link" to={`/leads/${lead.id}`}>{lead.contact.firstName} {lead.contact.lastName}</Link></td><td>{lead.contact.company}</td><td>{lead.leadScore} / 10</td><td><StageBadge stage={lead.stage} /></td><td>{lead.opportunities.length}</td></tr>)}</tbody>
+      </table></div>}
     </>}
   </>;
 }
