@@ -2,9 +2,23 @@
 
 A lightweight CRM for tracking contacts, qualifying leads, and managing sales opportunities. Staff can follow a customer from the first inquiry to a closed sale in a single dashboard.
 
+**[Try the live demo](https://abdelrahman2411200.github.io/Minimalist_CRM/) · [Watch the 53-second walkthrough](docs/media/crm-walkthrough.mp4)**
+
+[![Open the 53-second CRM walkthrough: create a fictional contact, add a linked lead, change its stage from the board, and create an opportunity](docs/media/crm-walkthrough-thumbnail.png)](docs/media/crm-walkthrough.mp4)
+
+Click the thumbnail to open the captioned MP4 (1280×960, about 458 KiB; no audio). Recorded on the **live GitHub Pages demo** with fictional Sara Example: create a contact → add a linked lead → **Board view → Edit lead → Stage → Save lead** → create a linked EGP opportunity. The board uses its existing edit controls; it does not use drag-and-drop. Demo changes stay in browser memory and reset on reload.
+
+**CI evidence — application release `c1b185b`:** [Successful main run #43768278775](https://github.com/Abdelrahman2411200/Minimalist_CRM/actions/runs/43768278775). Passed lint, TypeScript checks, API/full/demo builds, Prisma migrations and PostgreSQL/API/security integration tests, demo adapter tests, Selenium desktop/mobile workflows, and runtime/migration image builds. The same run verified local HTTPS, sessions, restart/rollback, private Grafana data and backup restore; it published the tested GHCR images and verified/deployed the standalone Pages demo.
+
+**Local monitoring with synthetic traffic**
+
+![Local monitoring with synthetic traffic: Grafana request rate, 5xx server error rate, and p95 API latency](docs/media/grafana-local-synthetic.png)
+
+Actual Grafana capture from the local Docker staging stack after **186 synthetic API requests** over approximately 92 seconds. All three panel queries returned numeric data; server errors remained at **0%**. Labels use route templates rather than contact IDs or raw URLs. This is a recorded local snapshot, not a public monitoring dashboard or evidence of VPS hosting. See [media provenance and verification](docs/media/README.md) and the [monitoring guide](docs/operations.md).
+
 **Current checkpoint: Phase 8.** The full app includes private Prometheus/Grafana monitoring, structured request logs, and a PostgreSQL backup/restore procedure tested with synthetic records. CI tests the container deployment and recovery workflow before publishing the full CRM/migration images and fictional demo. See the [release runbook](docs/release-runbook.md), [monitoring guide](docs/operations.md), and [backup guide](docs/backup-restore.md).
 
-**Live fictional demo:** [abdelrahman2411200.github.io/Minimalist_CRM](https://abdelrahman2411200.github.io/Minimalist_CRM/). **Full CRM:** no hosted URL is configured yet; use the local app or configure `https://<crm-domain>/` with the [VPS reference](docs/vps-deployment.md). Set the Pages repository variable `FULL_CRM_URL` after verifying that host to show its external link in the demo. Both targets use the same screens and hash navigation.
+**Hosting status:** GitHub Pages is the public, fictional portfolio demo and works without the CRM API or credentials. The full CRM has been verified locally in Docker and through temporary Cloudflare Quick Tunnel staging access; a permanent production/VPS host and VPS certificate issuance remain unverified. Temporary tunnel addresses can change and are not the portfolio's API backend. Configure a stable `https://<crm-domain>/` with the [VPS reference](docs/vps-deployment.md), then set the Pages repository variable `FULL_CRM_URL` after verifying that host to show its external link. Both targets use the same screens and hash navigation.
 
 The refreshed interface includes a public introduction at `#/welcome` (also the full app's root), sign-in, a live `#/overview`, global contact search, and responsive contact, lead and opportunity screens. Leads support a table/board toggle and stage filtering. The demo still opens Contacts directly. See the [design/security review and tracked findings](docs/design-security-review.md).
 
