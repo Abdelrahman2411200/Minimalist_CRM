@@ -13,7 +13,7 @@ A lightweight CRM for tracking contacts, qualifying leads, and managing sales op
 | Database | PostgreSQL, Prisma | Records, staff accounts, sessions, and versioned migrations |
 | Delivery | Docker Compose, GitHub Actions, GitHub Pages | Local full app, automated checks, and fictional portfolio demo |
 | Full CRM hosting | GitHub Container Registry, Caddy, Docker Compose, and an HTTPS VPS | Tested image releases and configurable deployment reference |
-| Planned monitoring | Prometheus and Grafana | Traffic, 5xx error rate, and p95 latency in Phase 8 |
+| Planned monitoring | Prometheus and Grafana | Traffic, 5xx error rate, and p95 latency |
 
 ## Runtime and installation
 
